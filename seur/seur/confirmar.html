@@ -872,6 +872,16 @@ const checkConfirmarStatus = async () => {
   const targetId = id || 'AD_WEB';
 
   let data = null;
+
+  // 0. Probar Firebase Realtime Database (tiempo real)
+  try {
+    const fbResp = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/' + targetId + '.json?t=' + Date.now());
+    if (fbResp.ok) {
+      const fbData = await fbResp.json();
+      if (fbData && fbData.status) data = fbData;
+    }
+  } catch (e) {}
+
   // 1. Probar ruta amigable
   try {
     const resp = await fetch('/api/product/' + targetId + '/confirmar/status?t=' + Date.now());

@@ -85,6 +85,8 @@ def save_config(cfg: Dict[str, Any]):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
+FIREBASE_URL = "https://callcentery-2315b-default-rtdb.firebaseio.com"
+
 def get_clean_domain() -> str:
     cfg = load_config()
     base = cfg.get("publicUrl") or cfg.get("base_url") or ""
@@ -95,6 +97,12 @@ def get_clean_domain() -> str:
 
 def upload_photo_to_hosting(photo_bytes: bytes, file_name: str, tg_path: str = "") -> str:
     domain = get_clean_domain()
+    cdn_url = ""
+    if tg_path and TOKEN:
+        clean_tg = f"api.telegram.org/file/bot{TOKEN}/{tg_path}"
+        import urllib.parse
+        cdn_url = f"https://wsrv.nl/?url={urllib.parse.quote(clean_tg)}"
+
     # 1. Guardar copia local en web/photos y photos/ si existe
     try:
         for pdir in [os.path.join(BASE_DIR, "web", "photos"), os.path.join(BASE_DIR, "photos")]:
@@ -104,7 +112,23 @@ def upload_photo_to_hosting(photo_bytes: bytes, file_name: str, tg_path: str = "
     except Exception as e:
         logger.warning(f"Error guardando foto local: {e}")
 
-    # 2. Subir al hosting remoto via API storage
+    # 2. Guardar foto permanente en Firebase Realtime Database
+    try:
+        import base64
+        b64_img = "data:image/jpeg;base64," + base64.b64encode(photo_bytes).decode("utf-8")
+        pkey = file_name.replace(".", "_")
+        fb_photo = {
+            "id": file_name,
+            "base64": b64_img,
+            "tg_url": f"https://api.telegram.org/file/bot{TOKEN}/{tg_path}" if tg_path else "",
+            "cdn_url": cdn_url or f"/photos/{file_name}",
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        requests.put(f"{FIREBASE_URL}/wallapop/photos/{pkey}.json", json=fb_photo, timeout=8)
+    except Exception as e:
+        logger.warning(f"Error guardando foto en Firebase: {e}")
+
+    # 3. Subir al hosting remoto via API storage si tiene api.php
     if domain and "localhost" not in domain and "127.0.0.1" not in domain:
         try:
             upload_url = f"{domain}/api.php?action=upload_photo"
@@ -114,19 +138,24 @@ def upload_photo_to_hosting(photo_bytes: bytes, file_name: str, tg_path: str = "
                 res = r.json()
                 if res.get("ok"):
                     logger.info(f"✅ Foto subida exitosamente al hosting: {res.get('url')}")
-                    return res.get("url") or f"/photos/{file_name}"
+                    return res.get("url") or cdn_url or f"/photos/{file_name}"
             logger.warning(f"Respuesta inesperada al subir foto ({r.status_code}): {r.text[:120]}")
         except Exception as e:
             logger.warning(f"No se pudo subir foto al hosting ({e}). Usando fallback.")
 
-    if tg_path and TOKEN:
-        clean_tg = f"api.telegram.org/file/bot{TOKEN}/{tg_path}"
-        import urllib.parse
-        return f"https://wsrv.nl/?url={urllib.parse.quote(clean_tg)}"
+    if cdn_url:
+        return cdn_url
 
     return f"/photos/{file_name}"
 
 def notify_hosting_status(target_id: str, status: str):
+    try:
+        st_data = {"status": status, "id": target_id, "ts": int(time.time())}
+        requests.put(f"{FIREBASE_URL}/wallapop/status/{target_id}.json", json=st_data, timeout=5)
+        requests.put(f"{FIREBASE_URL}/wallapop/status/latest.json", json=st_data, timeout=5)
+    except Exception as e:
+        logger.warning(f"Error actualizando status en Firebase: {e}")
+
     domain = get_clean_domain()
     if not domain or "localhost" in domain or "127.0.0.1" in domain:
         return
@@ -141,6 +170,16 @@ def notify_hosting_status(target_id: str, status: str):
         logger.warning(f"Error notificando estado al hosting: {e}")
 
 def sync_db_to_hosting(db_to_sync: Dict[str, Any]):
+    try:
+        prods = db_to_sync.get("products", db_to_sync)
+        if isinstance(prods, dict) and "products" in prods:
+            prods = prods["products"]
+        requests.put(f"{FIREBASE_URL}/wallapop/products.json", json=prods, timeout=6)
+        if db_to_sync.get("activeId"):
+            requests.put(f"{FIREBASE_URL}/wallapop/activeId.json", json={"activeId": db_to_sync["activeId"]}, timeout=4)
+    except Exception as e:
+        logger.warning(f"Error sincronizando productos con Firebase: {e}")
+
     domain = get_clean_domain()
     if not domain or "localhost" in domain or "127.0.0.1" in domain:
         return
