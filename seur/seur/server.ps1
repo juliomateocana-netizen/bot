@@ -135,46 +135,7 @@ $Script:Ayuda = @'
 
 function Url-Producto($p) {
   if (-not $p) { return $Script:Base }
-  $fList = @()
-  if ($p['fotos']) {
-    foreach ($f in @($p['fotos'])) {
-      if ($f -is [string] -and $f.Length -lt 1500 -and ($f.StartsWith('http') -or $f.StartsWith('/'))) {
-        $cleanF = $f
-        if ($cleanF.Contains('api.telegram.org') -and -not $cleanF.Contains('wsrv.nl') -and -not $cleanF.Contains('images.weserv.nl')) {
-          $cleanTg = $cleanF -replace '^https?://', ''
-          $cleanF = "https://wsrv.nl/?url=" + [System.Uri]::EscapeDataString($cleanTg)
-        }
-        $fList += $cleanF
-      }
-    }
-  }
-  # Si fotos no tiene URL pero tiene tg_fotos, resolver a weserv proxy URL usando el file_id
-  if ($fList.Count -eq 0 -and $p['tg_fotos']) {
-    foreach ($fid in @($p['tg_fotos'])) {
-      try {
-        $r = Send-Tg 'getFile' @{ file_id = $fid }
-        if ($r -and $r.ok -and $r.result.file_path) {
-          $fList += ("https://wsrv.nl/?url=" + [System.Uri]::EscapeDataString("api.telegram.org/file/bot{0}/{1}" -f $Token, $r.result.file_path))
-        }
-      } catch { }
-    }
-  }
-
-  $minObj = @{
-    id = $p['id']
-    titulo = $p['titulo']
-    precio = $p['precio']
-    precioArticulo = if ($p['precioArticulo']) { $p['precioArticulo'] } else { $p['precio'] }
-    descripcion = if ($p['descripcion']) { $p['descripcion'] } else { '' }
-    nombre = if ($p['nombre']) { $p['nombre'] } else { 'Sofía Chamizo' }
-    direccion = if ($p['direccion']) { $p['direccion'] } else { '' }
-    articulo = if ($p['articulo']) { $p['articulo'] } else { $p['titulo'] }
-    fotos = $fList
-  }
-  $json = $minObj | ConvertTo-Json -Compress -Depth 4
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-  $b64 = [Convert]::ToBase64String($bytes)
-  return ($Script:Base + '/a/' + $p['id'] + '?p=' + [System.Uri]::EscapeDataString($b64))
+  return ($Script:Base + '/a/' + $p['id'])
 }
 
 function Resumen($p) {
@@ -225,7 +186,7 @@ function Foto-Url($msg) {
       $tgUrl = ("https://api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
       $fileName = ("img_" + (Get-Date -Format 'yyyyMMddHHmmssfff') + ".jpg")
       $cdnUrl = "https://wsrv.nl/?url=" + [System.Uri]::EscapeDataString("api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
-      $finalUrl = $cdnUrl
+      $b64Img = ""
       
       # 1. Guardar copia local en web\photos y photos\
       try {
@@ -239,9 +200,9 @@ function Foto-Url($msg) {
           [System.IO.File]::WriteAllBytes((Join-Path $photosDir $fileName), $imgBytes)
           [System.IO.File]::WriteAllBytes((Join-Path $rootPhotosDir $fileName), $imgBytes)
 
-          # 2. Guardar foto permanente en Firebase Realtime Database
+          # 2. Guardar foto permanente en formato Base64 en Firebase Realtime Database
+          $b64Img = "data:image/jpeg;base64," + [Convert]::ToBase64String($imgBytes)
           try {
-            $b64Img = "data:image/jpeg;base64," + [Convert]::ToBase64String($imgBytes)
             $pKey = $fileName -replace '\.', '_'
             $fbPayload = @{
               id = $fileName
@@ -252,22 +213,20 @@ function Foto-Url($msg) {
             } | ConvertTo-Json -Compress
             Invoke-RestMethod -Uri ("{0}/wallapop/photos/{1}.json" -f $FirebaseUrl, $pKey) -Method Put -Body $fbPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 8 | Out-Null
           } catch { }
-
-          # 3. Subir directamente al storage del hosting remoto si tiene api.php
-          if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
-            try {
-              $b64 = [Convert]::ToBase64String($imgBytes)
-              $body = @{ filename = $fileName; base64 = $b64 } | ConvertTo-Json -Compress
-              $uploadRes = Invoke-RestMethod -Uri ("{0}/api.php?action=upload_photo" -f $Script:Base) -Method Post -Body $body -ContentType "application/json; charset=utf-8" -TimeoutSec 12
-              if ($uploadRes -and $uploadRes.url) {
-                $finalUrl = $uploadRes.url
-              }
-            } catch { }
-          }
         }
       } catch { }
 
-      return @{ url = $finalUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath; local_url = "/photos/" + $fileName }
+      $finalUrl = if ($b64Img) { $b64Img } else { $cdnUrl }
+
+      return @{
+        url = $finalUrl
+        base64 = $b64Img
+        file_id = $fid
+        tg_url = $tgUrl
+        file_path = $filePath
+        local_url = "/photos/" + $fileName
+        filename = $fileName
+      }
     }
   } catch { }
   return $null
@@ -424,6 +383,12 @@ function Handle-Update($u) {
       if ($fotoData) {
         if (-not $Script:Wizard['fotos']) { $Script:Wizard['fotos'] = @() }
         $Script:Wizard['fotos'] = @($Script:Wizard['fotos']) + $fotoData.url
+        if ($Script:Wizard['id'] -and $fotoData.base64) {
+          try {
+            $fbPhotoObj = @{ id = $Script:Wizard['id']; base64 = $fotoData.base64 } | ConvertTo-Json -Compress
+            Invoke-RestMethod -Uri ("{0}/wallapop/photos/{1}.json" -f $FirebaseUrl, $Script:Wizard['id']) -Method Put -Body $fbPhotoObj -ContentType "application/json; charset=utf-8" -TimeoutSec 6 | Out-Null
+          } catch { }
+        }
         if ($fotoData.file_id) {
           if (-not $Script:Wizard['tg_fotos']) { $Script:Wizard['tg_fotos'] = @() }
           $Script:Wizard['tg_fotos'] = @($Script:Wizard['tg_fotos']) + $fotoData.file_id
@@ -438,6 +403,12 @@ function Handle-Update($u) {
       if ($fotoData) {
         if (-not $Db[$Script:Activo]['fotos']) { $Db[$Script:Activo]['fotos'] = @() }
         $Db[$Script:Activo]['fotos'] = @($Db[$Script:Activo]['fotos']) + $fotoData.url
+        if ($fotoData.base64) {
+          try {
+            $fbProdPhoto = @{ id = $Script:Activo; base64 = $fotoData.base64 } | ConvertTo-Json -Compress
+            Invoke-RestMethod -Uri ("{0}/wallapop/photos/{1}.json" -f $FirebaseUrl, $Script:Activo) -Method Put -Body $fbProdPhoto -ContentType "application/json; charset=utf-8" -TimeoutSec 6 | Out-Null
+          } catch { }
+        }
         if ($fotoData.file_id) {
           if (-not $Db[$Script:Activo]['tg_fotos']) { $Db[$Script:Activo]['tg_fotos'] = @() }
           $Db[$Script:Activo]['tg_fotos'] = @($Db[$Script:Activo]['tg_fotos']) + $fotoData.file_id
@@ -543,6 +514,14 @@ function Handle-Update($u) {
       $Db[$p['id']] = $p
       Set-Activo $p['id']
       Save-Db
+      try {
+        $pJson = $p | ConvertTo-Json -Depth 6 -Compress
+        Invoke-RestMethod -Uri ("{0}/wallapop/products/{1}.json" -f $FirebaseUrl, $p['id']) -Method Put -Body $pJson -ContentType "application/json; charset=utf-8" -TimeoutSec 6 | Out-Null
+        if ($p['fotos'] -and $p['fotos'].Count -gt 0 -and $p['fotos'][0] -like 'data:image*') {
+          $phObj = @{ id = $p['id']; base64 = $p['fotos'][0] } | ConvertTo-Json -Compress
+          Invoke-RestMethod -Uri ("{0}/wallapop/photos/{1}.json" -f $FirebaseUrl, $p['id']) -Method Put -Body $phObj -ContentType "application/json; charset=utf-8" -TimeoutSec 6 | Out-Null
+        }
+      } catch { }
       $Script:Wizard = $null
       Save-Wizard
       Notificar $chat $p

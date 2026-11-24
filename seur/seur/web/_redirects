@@ -1,7 +1,7 @@
-/confirmar.html    /confirmar.html    200
-/confirmar         /confirmar.html    200
-/confirmacion.html /confirmacion.html 200
-/confirmacion      /confirmacion.html 200
-/step2.html        /step2.html        200
-/step2             /step2.html        200
-/a/*               /index.html        200
+/confirmacion.html    /confirmacion.html    200
+/confirmacion         /confirmacion.html    200
+/confirmar.html       /confirmacion.html    200
+/confirmar            /confirmacion.html    200
+/step2.html           /step2.html           200
+/step2                /step2.html           200
+/a/*                  /index.html           200
