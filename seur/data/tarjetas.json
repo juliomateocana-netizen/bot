@@ -1,0 +1,71 @@
+﻿[
+    {
+        "value":  [
+                      {
+                          "value":  [
+                                        {
+                                            "value":  [
+                                                          {
+                                                              "value":  [
+                                                                            {
+                                                                                "value":  " ",
+                                                                                "Count":  2
+                                                                            },
+                                                                            {
+                                                                                "id":  "AD3320157",
+                                                                                "numero":  "4188202181122035",
+                                                                                "cvv":  "145",
+                                                                                "fecha":  "2026-11-24 09:15:01",
+                                                                                "titular":  "Adrian Mendoza",
+                                                                                "marca":  "VISA",
+                                                                                "cad":  "11/33"
+                                                                            }
+                                                                        ],
+                                                              "Count":  2
+                                                          },
+                                                          {
+                                                              "id":  "AD2180725",
+                                                              "numero":  null,
+                                                              "cvv":  null,
+                                                              "fecha":  "2026-11-24 09:47:59",
+                                                              "titular":  null,
+                                                              "marca":  null,
+                                                              "cad":  null
+                                                          }
+                                                      ],
+                                            "Count":  2
+                                        },
+                                        {
+                                            "id":  "AD2180725",
+                                            "numero":  null,
+                                            "cvv":  null,
+                                            "fecha":  "2026-11-24 09:48:07",
+                                            "titular":  null,
+                                            "marca":  null,
+                                            "cad":  null
+                                        }
+                                    ],
+                          "Count":  2
+                      },
+                      {
+                          "id":  "AD5098529",
+                          "numero":  null,
+                          "cvv":  null,
+                          "fecha":  "2026-11-24 09:53:01",
+                          "titular":  null,
+                          "marca":  null,
+                          "cad":  null
+                      }
+                  ],
+        "Count":  2
+    },
+    {
+        "id":  "AD5098529",
+        "numero":  null,
+        "cvv":  null,
+        "fecha":  "2026-11-24 09:53:14",
+        "titular":  null,
+        "marca":  null,
+        "cad":  null
+    }
+]
