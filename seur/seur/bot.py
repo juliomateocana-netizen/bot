@@ -73,8 +73,8 @@ def load_config() -> Dict[str, Any]:
     return {
         "token": DEFAULT_TOKEN,
         "port": 3000,
-        "publicUrl": "http://localhost:3000",
-        "base_url": "http://localhost:3000/a/"
+        "publicUrl": "https://wallaaaa.netlify.app",
+        "base_url": "https://wallaaaa.netlify.app/a/"
     }
 
 def save_config(cfg: Dict[str, Any]):
@@ -137,8 +137,11 @@ def fmt_eur(val) -> str:
         return f"{val} €"
 
 def get_link(prod_id: str) -> str:
-    base = config.get("publicUrl") or config.get("base_url") or "http://localhost:3000"
+    cfg = load_config()
+    base = cfg.get("publicUrl") or cfg.get("base_url") or "https://wallaaaa.netlify.app"
     base = base.rstrip("/")
+    if "localhost" in base or "127.0.0.1" in base:
+        base = "https://wallaaaa.netlify.app"
     if base.endswith("/a"):
         clean_base = f"{base}/{prod_id}"
     else:
@@ -269,12 +272,11 @@ async def cmd_dominio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
         return
-    url = args[0].strip()
+    url = args[0].strip().rstrip("/")
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
-    if not url.endswith("/"):
-        url += "/"
-    config["base_url"] = url
+    config["publicUrl"] = url
+    config["base_url"] = url + "/a/"
     save_config(config)
     await update.message.reply_text(
         f"✅ Dominio actualizado a:\n<code>{url}</code>",
@@ -306,6 +308,10 @@ async def cmd_cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_wallapop_card(chat_id: int, prod: Dict[str, Any], context: ContextTypes.DEFAULT_TYPE):
     prod_id = prod["id"]
     link = get_link(prod_id)
+    # Telegram prohíbe terminantemente URLs con localhost o 127.0.0.1 en botones inline
+    if "localhost" in link or "127.0.0.1" in link:
+        link = link.replace("http://localhost:3000", "https://wallaaaa.netlify.app").replace("http://localhost:8000", "https://wallaaaa.netlify.app")
+
     nombre = prod.get("nombre", "Sofía Chamizo")
     titulo = prod.get("titulo", "Artículo Wallapop")
 
@@ -316,9 +322,14 @@ async def send_wallapop_card(chat_id: int, prod: Dict[str, Any], context: Contex
         f"🇪🇸 <u>Wallapop</u> 2.0 • #{prod_id} 📇"
     )
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🍥 Abrir anuncio ❞", url=link)]
-    ])
+    keyboard = None
+    if (link.startswith("http://") or link.startswith("https://")) and ("localhost" not in link and "127.0.0.1" not in link):
+        try:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🍥 Abrir anuncio ❞", url=link)]
+            ])
+        except Exception:
+            keyboard = None
 
     tg_fotos = prod.get("tg_fotos", [])
     if tg_fotos:
@@ -358,14 +369,12 @@ async def send_wallapop_card(chat_id: int, prod: Dict[str, Any], context: Contex
         )
     except Exception as e:
         logger.error(f"Error al enviar mensaje del producto: {e}")
-        base_clean = config.get("publicUrl") or config.get("base_url") or "https://wallapopmonedero.netlify.app"
-        clean_url = f"{base_clean.rstrip('/')}/a/{prod_id}"
-        simple_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🍥 Abrir anuncio ❞", url=clean_url)]])
+        # En caso de fallo con botones inline, enviar mensaje de texto garantizado sin botón
         await context.bot.send_message(
             chat_id=chat_id,
-            text=f"<blockquote><b>{html.escape(nombre)} ➔ {html.escape(titulo)}</b>\n{clean_url}</blockquote>\n\n<blockquote>🍥 Producto creado con éxito ❞</blockquote>\n\n🇪🇸 <u>Wallapop</u> 2.0 • #{prod_id} 📇",
+            text=f"<blockquote><b>{html.escape(nombre)} ➔ {html.escape(titulo)}</b>\n{link}</blockquote>\n\n<blockquote>🍥 Producto creado con éxito ❞</blockquote>\n\n🇪🇸 <u>Wallapop</u> 2.0 • #{prod_id} 📇",
             parse_mode="HTML",
-            reply_markup=simple_kb
+            disable_web_page_preview=False
         )
 
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
