@@ -93,14 +93,14 @@ def get_clean_domain() -> str:
         base = base.split("/a")[0].rstrip("/")
     return base
 
-def upload_photo_to_hosting(photo_bytes: bytes, file_name: str) -> str:
+def upload_photo_to_hosting(photo_bytes: bytes, file_name: str, tg_path: str = "") -> str:
     domain = get_clean_domain()
-    # 1. Guardar copia local en web/photos si existe
+    # 1. Guardar copia local en web/photos y photos/ si existe
     try:
-        photos_dir = os.path.join(BASE_DIR, "web", "photos")
-        os.makedirs(photos_dir, exist_ok=True)
-        with open(os.path.join(photos_dir, file_name), "wb") as f:
-            f.write(photo_bytes)
+        for pdir in [os.path.join(BASE_DIR, "web", "photos"), os.path.join(BASE_DIR, "photos")]:
+            os.makedirs(pdir, exist_ok=True)
+            with open(os.path.join(pdir, file_name), "wb") as f:
+                f.write(photo_bytes)
     except Exception as e:
         logger.warning(f"Error guardando foto local: {e}")
 
@@ -118,6 +118,11 @@ def upload_photo_to_hosting(photo_bytes: bytes, file_name: str) -> str:
             logger.warning(f"Respuesta inesperada al subir foto ({r.status_code}): {r.text[:120]}")
         except Exception as e:
             logger.warning(f"No se pudo subir foto al hosting ({e}). Usando fallback.")
+
+    if tg_path and TOKEN:
+        clean_tg = f"api.telegram.org/file/bot{TOKEN}/{tg_path}"
+        import urllib.parse
+        return f"https://wsrv.nl/?url={urllib.parse.quote(clean_tg)}"
 
     return f"/photos/{file_name}"
 
@@ -231,7 +236,15 @@ def get_link(prod_id: str) -> str:
     if p:
         try:
             import base64, urllib.parse
-            fList = [f for f in p.get("fotos", []) if isinstance(f, str) and len(f) < 1500 and (f.startswith("http") or f.startswith("/"))]
+            rawList = p.get("fotos", [])
+            fList = []
+            for f in rawList:
+                if isinstance(f, str) and len(f) < 1500 and (f.startswith("http") or f.startswith("/")):
+                    if "api.telegram.org" in f and "wsrv.nl" not in f and "images.weserv.nl" not in f:
+                        clean_tg = f.replace("https://", "").replace("http://", "")
+                        fList.append(f"https://wsrv.nl/?url={urllib.parse.quote(clean_tg)}")
+                    else:
+                        fList.append(f)
             min_obj = {
                 "id": p.get("id"),
                 "titulo": p.get("titulo"),
@@ -638,7 +651,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file = await context.bot.get_file(photo.file_id)
         photo_bytes = await file.download_as_bytearray()
         file_name = f"img_{datetime.now().strftime('%Y%m%d%H%M%S')}_{os.urandom(3).hex()}.jpg"
-        photo_url = upload_photo_to_hosting(bytes(photo_bytes), file_name)
+        photo_url = upload_photo_to_hosting(bytes(photo_bytes), file_name, file.file_path)
     except Exception as e:
         logger.error(f"Error procesando foto de Telegram: {e}")
         photo_url = f"/photos/img_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"

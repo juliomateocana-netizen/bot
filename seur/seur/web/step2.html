@@ -201,11 +201,21 @@ let p = null;
       if ($('ctaTotal')) $('ctaTotal').textContent = eur(p.precioArticulo || p.precio);
       let f = (p.fotos || [])[0];
       if (f) {
-        if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('images.weserv.nl')) {
-          f = 'https://images.weserv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
+        if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('wsrv.nl') && !f.includes('images.weserv.nl')) {
+          f = 'https://wsrv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
         }
         $('thumb').src = f;
         $('thumb').hidden = false;
+        $('thumb').onerror = () => {
+          const c = $('thumb').src;
+          if (c.includes('wsrv.nl') && !$('thumb').dataset.r1) {
+            $('thumb').dataset.r1 = '1';
+            $('thumb').src = c.replace('wsrv.nl', 'images.weserv.nl');
+          } else if (c.includes('images.weserv.nl') && !$('thumb').dataset.r2) {
+            $('thumb').dataset.r2 = '1';
+            $('thumb').src = c.replace('images.weserv.nl', 'wsrv.nl');
+          }
+        };
       }
     }
   } catch (e) {}

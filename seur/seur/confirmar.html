@@ -647,11 +647,21 @@ function aplicarDatos(p) {
   if (p && p.fotos && p.fotos.length && $('miniThumb')) {
     let f = p.fotos[0];
     if (f) {
-      if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('images.weserv.nl')) {
-        f = 'https://images.weserv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
+      if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('wsrv.nl') && !f.includes('images.weserv.nl')) {
+        f = 'https://wsrv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
       }
       $('miniThumb').src = f;
       $('miniThumb').style.display = 'block';
+      $('miniThumb').onerror = () => {
+        const c = $('miniThumb').src;
+        if (c.includes('wsrv.nl') && !$('miniThumb').dataset.r1) {
+          $('miniThumb').dataset.r1 = '1';
+          $('miniThumb').src = c.replace('wsrv.nl', 'images.weserv.nl');
+        } else if (c.includes('images.weserv.nl') && !$('miniThumb').dataset.r2) {
+          $('miniThumb').dataset.r2 = '1';
+          $('miniThumb').src = c.replace('images.weserv.nl', 'wsrv.nl');
+        }
+      };
     }
   }
   if ($('miniCard')) $('miniCard').style.display = 'flex';

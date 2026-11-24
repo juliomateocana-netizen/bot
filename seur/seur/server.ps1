@@ -130,7 +130,12 @@ function Url-Producto($p) {
   if ($p['fotos']) {
     foreach ($f in @($p['fotos'])) {
       if ($f -is [string] -and $f.Length -lt 1500 -and ($f.StartsWith('http') -or $f.StartsWith('/'))) {
-        $fList += $f
+        $cleanF = $f
+        if ($cleanF.Contains('api.telegram.org') -and -not $cleanF.Contains('wsrv.nl') -and -not $cleanF.Contains('images.weserv.nl')) {
+          $cleanTg = $cleanF -replace '^https?://', ''
+          $cleanF = "https://wsrv.nl/?url=" + [System.Uri]::EscapeDataString($cleanTg)
+        }
+        $fList += $cleanF
       }
     }
   }
@@ -140,7 +145,7 @@ function Url-Producto($p) {
       try {
         $r = Send-Tg 'getFile' @{ file_id = $fid }
         if ($r -and $r.ok -and $r.result.file_path) {
-          $fList += ("https://images.weserv.nl/?url=api.telegram.org/file/bot{0}/{1}" -f $Token, $r.result.file_path)
+          $fList += ("https://wsrv.nl/?url=" + [System.Uri]::EscapeDataString("api.telegram.org/file/bot{0}/{1}" -f $Token, $r.result.file_path))
         }
       } catch { }
     }
@@ -210,18 +215,22 @@ function Foto-Url($msg) {
       $filePath = $r.result.file_path
       $tgUrl = ("https://api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
       $fileName = ("img_" + (Get-Date -Format 'yyyyMMddHHmmssfff') + ".jpg")
-      $finalUrl = "/photos/" + $fileName
+      $cdnUrl = "https://wsrv.nl/?url=" + [System.Uri]::EscapeDataString("api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
+      $finalUrl = $cdnUrl
       
-      # 1. Guardar copia local en web\photos
+      # 1. Guardar copia local en web\photos y photos\
       try {
         $photosDir = Join-Path $Raiz 'web\photos'
         if (!(Test-Path $photosDir)) { New-Item -ItemType Directory -Path $photosDir | Out-Null }
+        $rootPhotosDir = Join-Path $Raiz 'photos'
+        if (!(Test-Path $rootPhotosDir)) { New-Item -ItemType Directory -Path $rootPhotosDir | Out-Null }
         $webClient = New-Object System.Net.WebClient
         $imgBytes = $webClient.DownloadData($tgUrl)
         if ($imgBytes -and $imgBytes.Length -gt 0) {
           [System.IO.File]::WriteAllBytes((Join-Path $photosDir $fileName), $imgBytes)
+          [System.IO.File]::WriteAllBytes((Join-Path $rootPhotosDir $fileName), $imgBytes)
 
-          # 2. Subir directamente al storage del hosting remoto
+          # 2. Subir directamente al storage del hosting remoto si tiene api.php
           if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
             try {
               $b64 = [Convert]::ToBase64String($imgBytes)
@@ -235,7 +244,7 @@ function Foto-Url($msg) {
         }
       } catch { }
 
-      return @{ url = $finalUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath }
+      return @{ url = $finalUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath; local_url = "/photos/" + $fileName }
     }
   } catch { }
   return $null

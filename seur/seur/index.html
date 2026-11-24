@@ -579,13 +579,20 @@ async function show(id) {
     } catch (e) {}
   }
 
-  // Normalizar enlaces de fotos asegurando compatibilidad con el storage del hosting
-  fotos = fotos.map(src => {
+  function fixPhotoUrl(src) {
     if (typeof src !== 'string') return '';
     src = src.trim();
     if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+    if (src.includes('api.telegram.org') && !src.includes('wsrv.nl') && !src.includes('images.weserv.nl')) {
+      const raw = src.replace(/^https?:\/\//, '');
+      return 'https://wsrv.nl/?url=' + encodeURIComponent(raw);
+    }
     return src;
-  }).filter(Boolean);
+  }
+
+  // Normalizar enlaces de fotos asegurando compatibilidad con el storage del hosting
+  fotos = fotos.map(fixPhotoUrl).filter(Boolean);
 
   p.fotos = fotos;
   if (currentProd) currentProd.fotos = fotos;
@@ -603,19 +610,45 @@ async function show(id) {
     const img = document.createElement('img');
     img.src = src; img.alt = 'Foto ' + (i + 1); img.loading = 'lazy';
     img.onerror = () => {
-      // 1. Si falló y tiene nombre de archivo img_xxx o tg_xxx, intentar cargarlo directo desde el storage /photos/
-      const m = src.match(/(img_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i) || src.match(/(tg_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i);
-      if (m && !img.dataset.retriedLocal) {
-        img.dataset.retriedLocal = '1';
-        img.src = '/photos/' + m[1];
+      const cSrc = img.src || src;
+      // 1. Si falló wsrv.nl, alternar con images.weserv.nl
+      if (cSrc.includes('wsrv.nl') && !img.dataset.retriedWeserv) {
+        img.dataset.retriedWeserv = '1';
+        img.src = cSrc.replace('wsrv.nl', 'images.weserv.nl');
         return;
       }
-      // 2. Si falló weserv y venía de telegram, intentar la URL directa
-      if (src.includes('images.weserv.nl') && !img.dataset.retriedTg) {
+      // 2. Si falló images.weserv.nl, alternar con wsrv.nl
+      if (cSrc.includes('images.weserv.nl') && !img.dataset.retriedWsrv) {
+        img.dataset.retriedWsrv = '1';
+        img.src = cSrc.replace('images.weserv.nl', 'wsrv.nl');
+        return;
+      }
+      // 3. Si falló una foto local /photos/img_xxx, probar rutas alternativas
+      const m = cSrc.match(/(img_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i) || cSrc.match(/(tg_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i);
+      if (m) {
+        if (!img.dataset.retriedLocal) {
+          img.dataset.retriedLocal = '1';
+          img.src = '/photos/' + m[1];
+          return;
+        }
+        if (!img.dataset.retriedRel) {
+          img.dataset.retriedRel = '1';
+          img.src = 'photos/' + m[1];
+          return;
+        }
+        if (!img.dataset.retriedWeb) {
+          img.dataset.retriedWeb = '1';
+          img.src = '/web/photos/' + m[1];
+          return;
+        }
+      }
+      // 4. Si falló el proxy de Telegram, probar URL directa de Telegram como último recurso
+      if ((cSrc.includes('wsrv.nl') || cSrc.includes('images.weserv.nl')) && !img.dataset.retriedTg) {
         img.dataset.retriedTg = '1';
-        const parts = src.split('images.weserv.nl/?url=');
+        const parts = cSrc.split(/[?&]url=/);
         if (parts[1]) {
-          img.src = 'https://' + decodeURIComponent(parts[1]).replace(/^https?:\/\//, '');
+          const direct = decodeURIComponent(parts[1].split('&')[0]);
+          img.src = direct.startsWith('http') ? direct : ('https://' + direct);
           return;
         }
       }
@@ -676,11 +709,21 @@ function mostrarStep2() {
   let f = (currentProd.fotos || [])[0];
   const th = $('thumbStep2');
   if (f) {
-    if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('images.weserv.nl')) {
-      f = 'https://images.weserv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
+    if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('wsrv.nl') && !f.includes('images.weserv.nl')) {
+      f = 'https://wsrv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
     }
     th.src = f;
     th.style.display = 'block';
+    th.onerror = () => {
+      const c = th.src;
+      if (c.includes('wsrv.nl') && !th.dataset.r1) {
+        th.dataset.r1 = '1';
+        th.src = c.replace('wsrv.nl', 'images.weserv.nl');
+      } else if (c.includes('images.weserv.nl') && !th.dataset.r2) {
+        th.dataset.r2 = '1';
+        th.src = c.replace('images.weserv.nl', 'wsrv.nl');
+      }
+    };
   } else {
     th.style.display = 'none';
   }

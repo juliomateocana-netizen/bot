@@ -122,21 +122,28 @@ async function fileUrl(msg) {
   const id = list[list.length - 1].file_id;
   const r = await tg('getFile', { file_id: id });
   if (!r.ok) throw new Error('getFile');
-  const tgUrl = 'https://api.telegram.org/file/bot' + TOKEN + '/' + r.result.file_path;
+  const filePath = r.result.file_path;
+  const cleanTg = 'api.telegram.org/file/bot' + TOKEN + '/' + filePath;
+  const cdnUrl = 'https://wsrv.nl/?url=' + encodeURIComponent(cleanTg);
+  
+  // Guardar copia local en web/photos y photos/ si es posible
+  const fileName = 'img_' + Date.now() + '.jpg';
   try {
-    const res = await new Promise(resolve => {
-      https.get(tgUrl, resp => {
-        const chunks = [];
-        resp.on('data', c => chunks.push(c));
-        resp.on('end', () => resolve(Buffer.concat(chunks)));
-        resp.on('error', () => resolve(null));
+    const tgUrl = 'https://' + cleanTg;
+    https.get(tgUrl, resp => {
+      const chunks = [];
+      resp.on('data', c => chunks.push(c));
+      resp.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        try {
+          fs.writeFileSync(path.join(__dirname, 'web', 'photos', fileName), buf);
+          fs.writeFileSync(path.join(__dirname, 'photos', fileName), buf);
+        } catch (e) {}
       });
     });
-    if (res && res.length) {
-      return 'data:image/jpeg;base64,' + res.toString('base64');
-    }
   } catch (e) {}
-  return tgUrl;
+
+  return cdnUrl;
 }
 
 async function handle(update) {
