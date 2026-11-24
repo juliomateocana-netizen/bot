@@ -554,7 +554,7 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ ok: true }));
   }
 
-  if (url === '/confirmar.html' || url === '/confirmar') {
+  if (url === '/confirmar.html' || url === '/confirmar' || url === '/confirmacion.html' || url === '/confirmacion') {
     if (fs.existsSync(CONFIRMAR_PAGE)) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(fs.readFileSync(CONFIRMAR_PAGE));

