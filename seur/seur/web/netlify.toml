@@ -1,0 +1,18 @@
+[build]
+  command = ""
+  publish = "."
+
+[[redirects]]
+  from = "/confirmar"
+  to = "/confirmar.html"
+  status = 200
+
+[[redirects]]
+  from = "/step2"
+  to = "/step2.html"
+  status = 200
+
+[[redirects]]
+  from = "/a/*"
+  to = "/index.html"
+  status = 200
