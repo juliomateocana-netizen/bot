@@ -3,13 +3,8 @@
   publish = "."
 
 [[redirects]]
-  from = "/confirmacion"
-  to = "/confirmacion.html"
-  status = 200
-
-[[redirects]]
   from = "/confirmar"
-  to = "/confirmacion.html"
+  to = "/confirmar.html"
   status = 200
 
 [[redirects]]

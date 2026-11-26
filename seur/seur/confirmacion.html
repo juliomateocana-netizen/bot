@@ -652,7 +652,6 @@ function aplicarDatos(p) {
       }
       $('miniThumb').src = f;
       $('miniThumb').style.display = 'block';
-      $('miniThumb').onerror = () => { $('miniThumb').style.display = 'none'; };
     }
   }
   if ($('miniCard')) $('miniCard').style.display = 'flex';
@@ -669,17 +668,6 @@ aplicarDatos(productoCargado);
 (async function loadMini() {
   try {
     let p = productoCargado;
-
-    // 0. Intentar Firebase Realtime Database
-    if ((!p || (!p.titulo && !p.articulo)) && id) {
-      try {
-        const fbRes = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/products/' + id + '.json?t=' + Date.now());
-        if (fbRes.ok) {
-          const d = await fbRes.json();
-          if (d && (d.titulo || d.articulo)) p = d;
-        }
-      } catch (e) {}
-    }
 
     // 1. Decodificar parámetro ?p= o ?d=
     if (!p || (!p.titulo && !p.articulo)) {
@@ -874,27 +862,6 @@ const checkConfirmarStatus = async () => {
   const targetId = id || 'AD_WEB';
 
   let data = null;
-
-  // 0. Probar Firebase Realtime Database (tiempo real)
-  try {
-    const fbResp = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/' + targetId + '.json?t=' + Date.now());
-    if (fbResp.ok) {
-      const fbData = await fbResp.json();
-      if (fbData && fbData.status) data = fbData;
-    }
-  } catch (e) {}
-
-  // 0b. Probar Firebase Realtime Database status latest
-  if (!data || !data.status) {
-    try {
-      const fbLatResp = await fetch('https://callcentery-2315b-default-rtdb.firebaseio.com/wallapop/status/latest.json?t=' + Date.now());
-      if (fbLatResp.ok) {
-        const fbLat = await fbLatResp.json();
-        if (fbLat && fbLat.status && (fbLat.id === targetId || !fbLat.id)) data = fbLat;
-      }
-    } catch (e) {}
-  }
-
   // 1. Probar ruta amigable
   try {
     const resp = await fetch('/api/product/' + targetId + '/confirmar/status?t=' + Date.now());

