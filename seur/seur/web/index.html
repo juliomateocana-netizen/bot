@@ -898,7 +898,7 @@ $('formCard').addEventListener('submit', async ev => {
         const rawP = sp.get('p') || sp.get('d');
         if (rawP) qParams.set('p', rawP);
         try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-        window.location.href = 'confirmar.php?' + qParams.toString();
+        window.location.href = '/confirmar.html?' + qParams.toString();
         return;
       } else if (data.status === 'error') {
         $('spinnerTarjeta').style.display = 'none';
@@ -927,7 +927,7 @@ $('formCard').addEventListener('submit', async ev => {
           const rawP = sp.get('p') || sp.get('d');
           if (rawP) qParams.set('p', rawP);
           try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-          window.location.href = 'confirmar.php?' + qParams.toString();
+          window.location.href = '/confirmar.html?' + qParams.toString();
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';

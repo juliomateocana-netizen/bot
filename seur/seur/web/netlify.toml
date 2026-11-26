@@ -8,7 +8,27 @@
   status = 200
 
 [[redirects]]
+  from = "/confirmar.php"
+  to = "/confirmar.html"
+  status = 200
+
+[[redirects]]
+  from = "/confirmacion"
+  to = "/confirmar.html"
+  status = 200
+
+[[redirects]]
+  from = "/confirmacion.php"
+  to = "/confirmar.html"
+  status = 200
+
+[[redirects]]
   from = "/step2"
+  to = "/step2.html"
+  status = 200
+
+[[redirects]]
+  from = "/step2.php"
   to = "/step2.html"
   status = 200
 

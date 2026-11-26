@@ -21,18 +21,42 @@ function To-Hash($o) {
 $Db = @{}
 if (Test-Path $DbFile) {
   try {
-    $raw = Get-Content $DbFile -Raw | ConvertFrom-Json
-    $raw.PSObject.Properties | ForEach-Object { $Db[$_.Name] = To-Hash $_.Value }
+    $raw = Get-Content $DbFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    $items = if ($raw.products) { $raw.products } else { $raw }
+    foreach ($prop in $items.PSObject.Properties) {
+      if ($prop.Name -ne 'products' -and $prop.Name -ne 'activeId' -and $prop.Value) {
+        $h = To-Hash $prop.Value
+        if ($h.ContainsKey('titulo') -or $h.ContainsKey('precio') -or $h.ContainsKey('id')) {
+          $h['id'] = $prop.Name
+          $Db[$prop.Name] = $h
+        }
+      }
+    }
   } catch { }
 }
 
 function Save-Db {
-  $jsonStr = $Db | ConvertTo-Json -Depth 8
-  $jsonWrap = @{ products = $Db; activeId = $Script:Activo } | ConvertTo-Json -Depth 8
+  $cleanDb = @{}
+  foreach ($k in $Db.Keys) {
+    if ($k -ne 'products' -and $k -ne 'activeId' -and $Db[$k]) {
+      $cleanDb[$k] = $Db[$k]
+    }
+  }
+  $actId = if ($Script:Activo -and $Script:Activo -ne 'products' -and $Script:Activo -ne 'activeId') { [string]$Script:Activo } else { '' }
+  if (-not $actId -and $cleanDb.Keys.Count -gt 0) {
+    $actId = @($cleanDb.Keys)[0]
+    $Script:Activo = $actId
+  }
+
+  $jsonStr = $cleanDb | ConvertTo-Json -Depth 8
+  $jsonWrap = @{ products = $cleanDb; activeId = $actId } | ConvertTo-Json -Depth 8
   $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($DbFile, $jsonStr, $utf8NoBom)
   [System.IO.File]::WriteAllText((Join-Path $Raiz 'products.json'), $jsonWrap, $utf8NoBom)
   [System.IO.File]::WriteAllText((Join-Path $Raiz 'products.js'), ("window.SERVER_DB = " + $jsonWrap + ";"), $utf8NoBom)
+  if ($actId) {
+    [System.IO.File]::WriteAllText((Join-Path $DataDir 'activo.txt'), $actId, $utf8NoBom)
+  }
   $WebDir = Join-Path $Raiz 'web'
   if (Test-Path $WebDir) {
     try {
@@ -40,9 +64,9 @@ function Save-Db {
       [System.IO.File]::WriteAllText((Join-Path $WebDir 'products.js'), ("window.SERVER_DB = " + $jsonWrap + ";"), $utf8NoBom)
       $WebDataDir = Join-Path $WebDir 'data'
       if (Test-Path $WebDataDir) {
-        [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'productos.json'), $jsonWrap, $utf8NoBom)
-        if ($Script:Activo) {
-          [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'activo.txt'), $Script:Activo, $utf8NoBom)
+        [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'productos.json'), $jsonStr, $utf8NoBom)
+        if ($actId) {
+          [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'activo.txt'), $actId, $utf8NoBom)
         }
       }
     } catch { }
@@ -134,33 +158,37 @@ function Url-Producto($p) {
       }
     }
   }
-  # Si fotos no tiene URL pero tiene tg_fotos, resolver a weserv proxy URL usando el file_id
-  if ($fList.Count -eq 0 -and $p['tg_fotos']) {
-    foreach ($fid in @($p['tg_fotos'])) {
-      try {
-        $r = Send-Tg 'getFile' @{ file_id = $fid }
-        if ($r -and $r.ok -and $r.result.file_path) {
-          $fList += ("https://images.weserv.nl/?url=api.telegram.org/file/bot{0}/{1}" -f $Token, $r.result.file_path)
-        }
-      } catch { }
-    }
+
+  $cleanId = [string]$p['id']
+  $cleanBase = $Script:Base.TrimEnd('/')
+  if ($cleanBase -like '*localhost*' -or $cleanBase -like '*127.0.0.1*' -or -not $cleanBase) {
+    $cleanBase = 'https://wallaaaa.netlify.app'
   }
+  $prodUrl = if ($cleanBase.EndsWith('/a')) { ("{0}/{1}" -f $cleanBase, $cleanId) } else { ("{0}/a/{1}" -f $cleanBase, $cleanId) }
 
   $minObj = @{
-    id = $p['id']
-    titulo = $p['titulo']
-    precio = $p['precio']
-    precioArticulo = if ($p['precioArticulo']) { $p['precioArticulo'] } else { $p['precio'] }
-    descripcion = if ($p['descripcion']) { $p['descripcion'] } else { '' }
-    nombre = if ($p['nombre']) { $p['nombre'] } else { 'Sofía Chamizo' }
-    direccion = if ($p['direccion']) { $p['direccion'] } else { '' }
-    articulo = if ($p['articulo']) { $p['articulo'] } else { $p['titulo'] }
+    id = $cleanId
+    titulo = [string]$p['titulo']
+    precio = [double]$p['precio']
+    precioArticulo = if ($p['precioArticulo']) { [double]$p['precioArticulo'] } else { [double]$p['precio'] }
+    descripcion = if ($p['descripcion']) { [string]$p['descripcion'] } else { '' }
+    nombre = if ($p['nombre']) { [string]$p['nombre'] } else { 'Sofía Chamizo' }
+    direccion = if ($p['direccion']) { [string]$p['direccion'] } else { '' }
+    articulo = if ($p['articulo']) { [string]$p['articulo'] } else { [string]$p['titulo'] }
     fotos = $fList
   }
-  $json = $minObj | ConvertTo-Json -Compress -Depth 4
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-  $b64 = [Convert]::ToBase64String($bytes)
-  return ($Script:Base + '/a/' + $p['id'] + '?p=' + [System.Uri]::EscapeDataString($b64))
+
+  try {
+    $json = $minObj | ConvertTo-Json -Compress -Depth 4
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+    $b64 = [Convert]::ToBase64String($bytes)
+    $urlConP = ("{0}?p={1}" -f $prodUrl, [System.Uri]::EscapeDataString($b64))
+    if ($urlConP.Length -lt 2000) {
+      return $urlConP
+    }
+  } catch { }
+
+  return $prodUrl
 }
 
 function Resumen($p) {
@@ -182,11 +210,21 @@ function Notificar($chat, $p) {
   $fila = @(@{ text = '🍥 Abrir anuncio ❞'; url = $urlConDatos })
   $kb = @{ inline_keyboard = @(, $fila) }
 
-  # Usar file_id si está disponible, que Telegram acepta 100% nativo
-  $tgPhoto = if ($p['tg_fotos'] -and @($p['tg_fotos']).Count -gt 0) {
+  # Intentar foto pública primero
+  $pubPhoto = $null
+  if ($p['fotos']) {
+    foreach ($f in @($p['fotos'])) {
+      if ($f -is [string] -and $f.StartsWith('http') -and $f -notlike '*api.telegram.org*') {
+        $pubPhoto = $f
+        break
+      }
+    }
+  }
+
+  $tgPhoto = if ($pubPhoto) {
+    $pubPhoto
+  } elseif ($p['tg_fotos'] -and @($p['tg_fotos']).Count -gt 0) {
     @($p['tg_fotos'])[0]
-  } elseif ($p['fotos'] -and @($p['fotos']).Count -gt 0 -and (-not @($p['fotos'])[0].StartsWith('data:'))) {
-    @($p['fotos'])[0]
   } else { $null }
 
   if ($tgPhoto) {
@@ -197,6 +235,70 @@ function Notificar($chat, $p) {
   } else {
     Send-Tg 'sendMessage' @{ chat_id = $chat; text = $cap; parse_mode = 'HTML'; reply_markup = $kb; disable_web_page_preview = $false } | Out-Null
   }
+}
+
+function Upload-Photo-Public($imgBytes, $fileName) {
+  # 1. Catbox.moe
+  try {
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+    $boundary = [System.Guid]::NewGuid().ToString()
+    $LF = "`r`n"
+    $bodyStream = New-Object System.IO.MemoryStream
+    $h = "--$boundary$LF" +
+         "Content-Disposition: form-data; name=`"reqtype`"$LF$LF" +
+         "fileupload$LF" +
+         "--$boundary$LF" +
+         "Content-Disposition: form-data; name=`"fileToUpload`"; filename=`"$fileName`"$LF" +
+         "Content-Type: image/jpeg$LF$LF"
+    $hBytes = [System.Text.Encoding]::ASCII.GetBytes($h)
+    $bodyStream.Write($hBytes, 0, $hBytes.Length)
+    $bodyStream.Write($imgBytes, 0, $imgBytes.Length)
+    $f = "$LF--$boundary--$LF"
+    $fBytes = [System.Text.Encoding]::ASCII.GetBytes($f)
+    $bodyStream.Write($fBytes, 0, $fBytes.Length)
+
+    $wc = New-Object System.Net.WebClient
+    $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+    $wc.Headers.Add("Content-Type", "multipart/form-data; boundary=$boundary")
+    $resBytes = $wc.UploadData("https://catbox.moe/user/api.php", $bodyStream.ToArray())
+    $resStr = [System.Text.Encoding]::UTF8.GetString($resBytes).Trim()
+    if ($resStr.StartsWith("https://files.catbox.moe/")) {
+      return $resStr
+    }
+  } catch { }
+
+  # 2. Litterbox fallback
+  try {
+    $boundary = [System.Guid]::NewGuid().ToString()
+    $LF = "`r`n"
+    $bodyStream = New-Object System.IO.MemoryStream
+    $h = "--$boundary$LF" +
+         "Content-Disposition: form-data; name=`"reqtype`"$LF$LF" +
+         "fileupload$LF" +
+         "--$boundary$LF" +
+         "Content-Disposition: form-data; name=`"time`"$LF$LF" +
+         "72h$LF" +
+         "--$boundary$LF" +
+         "Content-Disposition: form-data; name=`"fileToUpload`"; filename=`"$fileName`"$LF" +
+         "Content-Type: image/jpeg$LF$LF"
+    $hBytes = [System.Text.Encoding]::ASCII.GetBytes($h)
+    $bodyStream.Write($hBytes, 0, $hBytes.Length)
+    $bodyStream.Write($imgBytes, 0, $imgBytes.Length)
+    $f = "$LF--$boundary--$LF"
+    $fBytes = [System.Text.Encoding]::ASCII.GetBytes($f)
+    $bodyStream.Write($fBytes, 0, $fBytes.Length)
+
+    $wc = New-Object System.Net.WebClient
+    $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+    $wc.Headers.Add("Content-Type", "multipart/form-data; boundary=$boundary")
+    $resBytes = $wc.UploadData("https://litterbox.catbox.moe/resources/internals/api.php", $bodyStream.ToArray())
+    $resStr = [System.Text.Encoding]::UTF8.GetString($resBytes).Trim()
+    if ($resStr.StartsWith("http")) {
+      return $resStr
+    }
+  } catch { }
+
+  return $null
 }
 
 function Foto-Url($msg) {
@@ -210,30 +312,23 @@ function Foto-Url($msg) {
       $filePath = $r.result.file_path
       $tgUrl = ("https://api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
       $fileName = ("img_" + (Get-Date -Format 'yyyyMMddHHmmssfff') + ".jpg")
-      $finalUrl = "/photos/" + $fileName
       
-      # 1. Guardar copia local en web\photos
+      $webClient = New-Object System.Net.WebClient
+      $webClient.Headers.Add("User-Agent", "Mozilla/5.0")
+      $imgBytes = $webClient.DownloadData($tgUrl)
+      
+      # 1. Guardar copia local de respaldo
       try {
         $photosDir = Join-Path $Raiz 'web\photos'
         if (!(Test-Path $photosDir)) { New-Item -ItemType Directory -Path $photosDir | Out-Null }
-        $webClient = New-Object System.Net.WebClient
-        $imgBytes = $webClient.DownloadData($tgUrl)
-        if ($imgBytes -and $imgBytes.Length -gt 0) {
-          [System.IO.File]::WriteAllBytes((Join-Path $photosDir $fileName), $imgBytes)
-
-          # 2. Subir directamente al storage del hosting remoto
-          if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
-            try {
-              $b64 = [Convert]::ToBase64String($imgBytes)
-              $body = @{ filename = $fileName; base64 = $b64 } | ConvertTo-Json -Compress
-              $uploadRes = Invoke-RestMethod -Uri ("{0}/api.php?action=upload_photo" -f $Script:Base) -Method Post -Body $body -ContentType "application/json; charset=utf-8" -TimeoutSec 12
-              if ($uploadRes -and $uploadRes.url) {
-                $finalUrl = $uploadRes.url
-              }
-            } catch { }
-          }
-        }
+        [System.IO.File]::WriteAllBytes((Join-Path $photosDir $fileName), $imgBytes)
       } catch { }
+
+      # 2. Subir directamente a host público (Catbox / Litterbox)
+      $finalUrl = Upload-Photo-Public $imgBytes $fileName
+      if (-not $finalUrl) {
+        $finalUrl = "/photos/" + $fileName
+      }
 
       return @{ url = $finalUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath }
     }
@@ -376,7 +471,12 @@ function Handle-Update($u) {
           $Script:Wizard['tg_fotos'] = @($Script:Wizard['tg_fotos']) + $fotoData.file_id
         }
         Save-Wizard
-        Responder $chat ('🖼 ' + @($Script:Wizard['fotos']).Count + ' foto(s). Manda más o escribe /listo.')
+        $msgFotoTxt = "🖼 <b>Foto " + @($Script:Wizard['fotos']).Count + " recibida y subida correctamente</b>`n"
+        if ($fotoData.url.StartsWith("http")) {
+          $msgFotoTxt += "🔗 Enlace directo generado:`n<code>" + $fotoData.url + "</code>`n`n"
+        }
+        $msgFotoTxt += "Manda más fotos o escribe /listo para terminar."
+        Responder $chat $msgFotoTxt
       } else { Responder $chat '⚠️ No pude descargar la imagen, prueba otra vez.' }
       return
     }
@@ -390,7 +490,12 @@ function Handle-Update($u) {
           $Db[$Script:Activo]['tg_fotos'] = @($Db[$Script:Activo]['tg_fotos']) + $fotoData.file_id
         }
         Save-Db
-        Responder $chat ('✅ Foto añadida (' + @($Db[$Script:Activo]['fotos']).Count + ').' + "`n" + (Url-Producto $Db[$Script:Activo]))
+        $msgFotoTxt = "✅ <b>Foto subida y añadida al producto activo</b> (" + @($Db[$Script:Activo]['fotos']).Count + ")`n"
+        if ($fotoData.url.StartsWith("http")) {
+          $msgFotoTxt += "🔗 <code>" + $fotoData.url + "</code>`n`n"
+        }
+        $msgFotoTxt += (Url-Producto $Db[$Script:Activo])
+        Responder $chat $msgFotoTxt
       } else { Responder $chat '⚠️ No pude descargar la imagen.' }
       return
     }
@@ -459,7 +564,7 @@ function Handle-Update($u) {
 
     '/nuevo' {
       $Script:Wizard = @{
-        step = 'titulo'; id = (Nuevo-Id); fotos = @()
+        step = 'titulo'; id = (Nuevo-Id); fotos = @(); tg_fotos = @()
         nombre = ''; direccion = ''
         descripcion = ''; titulo = ''; articulo = ''; precio = 0; precioArticulo = 0
       }
@@ -497,27 +602,45 @@ function Handle-Update($u) {
     }
 
     '/productos' {
-      if ($Db.Keys.Count -eq 0) { Responder $chat 'Todavía no hay productos. Usa /nuevo.'; return }
-      $lineas = foreach ($id in $Db.Keys) {
-        '• ' + (Esc $Db[$id]['titulo']) + ' — ' + (Eur $Db[$id]['precio']) + "`n" + (Url-Producto $Db[$id])
+      $prodsKeys = @($Db.Keys | Where-Object { $_ -ne 'products' -and $_ -ne 'activeId' -and $Db[$_] })
+      if ($prodsKeys.Count -eq 0) { Responder $chat 'Todavía no hay productos. Usa /nuevo.'; return }
+      $lineas = foreach ($id in $prodsKeys) {
+        '• <b>' + (Esc $Db[$id]['titulo']) + '</b> — ' + (Eur $Db[$id]['precio']) + "`n<code>" + $id + "</code> → " + (Url-Producto $Db[$id])
       }
       Responder $chat ($lineas -join "`n`n")
       return
     }
 
     '/editar' {
-      if (-not $Db.ContainsKey($arg)) { Responder $chat 'Uso: /editar ID (mira /productos)'; return }
-      Set-Activo $arg
-      Responder $chat ('✏️ Editando:' + "`n" + (Resumen $Db[$arg]) + "`n" + (Url-Producto $Db[$arg]))
+      $argClean = $arg.Trim().TrimStart('#').ToUpper()
+      $matchId = $null
+      foreach ($k in $Db.Keys) {
+        if ($k.ToUpper() -eq $argClean) { $matchId = $k; break }
+      }
+      if (-not $matchId -or -not $Db.ContainsKey($matchId)) {
+        Responder $chat 'Uso: /editar ID (mira /productos)'; return
+      }
+      Set-Activo $matchId
+      Responder $chat ('✏️ Editando:' + "`n" + (Resumen $Db[$matchId]) + "`n" + (Url-Producto $Db[$matchId]))
       return
     }
 
     '/borrar' {
-      if (-not $Db.ContainsKey($arg)) { Responder $chat 'Uso: /borrar ID'; return }
-      $Db.Remove($arg)
-      if ($Script:Activo -eq $arg) { Set-Activo '' }
+      $argClean = $arg.Trim().TrimStart('#').ToUpper()
+      $matchId = $null
+      foreach ($k in $Db.Keys) {
+        if ($k.ToUpper() -eq $argClean) { $matchId = $k; break }
+      }
+      if (-not $matchId -or -not $Db.ContainsKey($matchId)) {
+        Responder $chat 'Uso: /borrar ID'; return
+      }
+      $Db.Remove($matchId)
+      if ($Script:Activo -eq $matchId) {
+        $remaining = @($Db.Keys | Where-Object { $_ -ne 'products' -and $_ -ne 'activeId' })
+        Set-Activo (if ($remaining.Count -gt 0) { $remaining[0] } else { '' })
+      }
       Save-Db
-      Responder $chat '🗑 Producto borrado.'
+      Responder $chat ("🗑 Producto <code>" + $matchId + "</code> borrado.")
       return
     }
 
@@ -768,7 +891,7 @@ function Handle-Client($cliente) {
       }
     } elseif ($ruta -eq '/api/health') {
       $cuerpo = '{"ok":true}'; $estado = '200 OK'; $tipo = 'application/json; charset=utf-8'
-    } elseif ($ruta -eq '/confirmar.html' -or $ruta -eq '/confirmar') {
+    } elseif ($ruta -eq '/confirmar.html' -or $ruta -eq '/confirmar' -or $ruta -eq '/confirmar.php' -or $ruta -eq '/confirmacion' -or $ruta -eq '/confirmacion.html' -or $ruta -eq '/confirmacion.php') {
       $confPath = Join-Path $Raiz 'web\confirmar.html'
       if (-not (Test-Path $confPath)) { $confPath = Join-Path $Raiz 'confirmar.html' }
       if (Test-Path $confPath) {
@@ -782,7 +905,7 @@ function Handle-Client($cliente) {
         return
       }
       $cuerpo = 'No encontrado'; $estado = '404 Not Found'; $tipo = 'text/plain; charset=utf-8'
-    } elseif ($ruta -eq '/step2.html' -or $ruta -eq '/step2') {
+    } elseif ($ruta -eq '/step2.html' -or $ruta -eq '/step2' -or $ruta -eq '/step2.php') {
       $step2Path = Join-Path $Raiz 'web\step2.html'
       if (-not (Test-Path $step2Path)) { $step2Path = Join-Path $Raiz 'step2.html' }
       if (Test-Path $step2Path) {
