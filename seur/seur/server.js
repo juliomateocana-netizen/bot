@@ -6,7 +6,7 @@ const os = require('os');
 
 const CONFIG = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 const TOKEN = CONFIG.token;
-const PORT = process.env.PORT || CONFIG.port || 3000;
+const PORT = CONFIG.port || 3000;
 
 const DATA = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA)) fs.mkdirSync(DATA);
@@ -306,19 +306,6 @@ async function handle(update) {
       return reply(chat, '🗑 Producto borrado.');
     }
 
-    case '/url':
-    case '/dominio': {
-      if (!arg) {
-        return reply(chat, 'Dominio actual: <code>' + publicBase() + '</code>\n\nUso: <code>/url https://tu-sitio.com</code>');
-      }
-      let nuevo = arg.trim().replace(/\/+$/, '');
-      if (!nuevo.startsWith('http://') && !nuevo.startsWith('https://')) nuevo = 'https://' + nuevo;
-      CONFIG.publicUrl = nuevo;
-      CONFIG.base_url = nuevo + '/a/';
-      fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(CONFIG, null, 2));
-      return reply(chat, '✅ Dominio actualizado a: <code>' + nuevo + '</code>');
-    }
-
     case '/foto':
       return reply(chat, '📷 Envía la imagen y la añado al producto activo.');
 
@@ -554,7 +541,7 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ ok: true }));
   }
 
-  if (url === '/confirmar.html' || url === '/confirmar' || url === '/confirmacion.html' || url === '/confirmacion') {
+  if (url === '/confirmar.html' || url === '/confirmar') {
     if (fs.existsSync(CONFIRMAR_PAGE)) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(fs.readFileSync(CONFIRMAR_PAGE));

