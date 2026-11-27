@@ -12,3 +12,13 @@
   from = "/a/*"
   to = "/index.html"
   status = 200
+
+[[redirects]]
+  from = "/item/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

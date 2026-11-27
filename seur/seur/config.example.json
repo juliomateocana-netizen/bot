@@ -1,0 +1,6 @@
+{
+  "token": "TU_BOT_TOKEN_AQUI",
+  "port": 3000,
+  "publicUrl": "https://tu-sitio.netlify.app",
+  "base_url": "https://tu-sitio.netlify.app/item/"
+}

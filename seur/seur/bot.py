@@ -38,35 +38,36 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 DB_JSON_FILE = os.path.join(BASE_DIR, "products.json")
 DB_JS_FILE = os.path.join(BASE_DIR, "products.js")
 
-DEFAULT_TOKEN = "8818995413:AAHLry4iCNQZ7T385CoVodbXQcnrkymFmKM"
+DEFAULT_TOKEN = ""
 
 def load_token() -> str:
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
                 cfg = json.load(f)
-                if cfg.get("token"):
+                if cfg.get("token") and cfg["token"].strip():
                     return cfg["token"].strip()
         except Exception:
             pass
     if os.path.exists(TOKEN_FILE):
         try:
-            with open(TOKEN_FILE, "r", encoding="utf-8") as f:
+            with open(TOKEN_FILE, "r", encoding="utf-8-sig") as f:
                 t = f.read().strip()
                 if t:
                     return t
         except Exception:
             pass
-    return os.getenv("BOT_TOKEN", DEFAULT_TOKEN).strip()
+    token = os.getenv("BOT_TOKEN", DEFAULT_TOKEN).strip()
+    return token
 
 def load_config() -> Dict[str, Any]:
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
                 cfg = json.load(f)
                 return cfg
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error cargando config.json: {e}")
     return {
         "token": DEFAULT_TOKEN,
         "port": 3000,
@@ -81,7 +82,7 @@ def save_config(cfg: Dict[str, Any]):
 def load_db() -> Dict[str, Any]:
     if os.path.exists(DB_JSON_FILE):
         try:
-            with open(DB_JSON_FILE, "r", encoding="utf-8") as f:
+            with open(DB_JSON_FILE, "r", encoding="utf-8-sig") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -109,9 +110,12 @@ def save_db(db: Dict[str, Any]):
         with open(DB_JS_FILE, "w", encoding="utf-8") as f:
             f.write("window.SERVER_DB = " + json.dumps(db, ensure_ascii=False, indent=2) + ";\n")
         web_products = os.path.join(BASE_DIR, "web", "products.json")
+        web_js = os.path.join(BASE_DIR, "web", "products.js")
         if os.path.exists(os.path.join(BASE_DIR, "web")):
             with open(web_products, "w", encoding="utf-8") as f:
                 json.dump(db, f, ensure_ascii=False, indent=2)
+            with open(web_js, "w", encoding="utf-8") as f:
+                f.write("window.SERVER_DB = " + json.dumps(db, ensure_ascii=False, indent=2) + ";\n")
     except Exception as e:
         logger.error(f"Error guardando base de datos: {e}")
 
@@ -119,10 +123,19 @@ config = load_config()
 db = load_db()
 wizards: Dict[int, Dict[str, Any]] = {}
 
-def gen_id() -> str:
-    # Formato estilo AD + 7 dígitos como en el ejemplo #AD8351003
-    nums = "".join(random.choices(string.digits, k=7))
-    return f"AD{nums}"
+import re, unicodedata
+
+def slugify(texto: str) -> str:
+    if not texto:
+        return "articulo"
+    s = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('ascii').lower()
+    s = re.sub(r'[^a-z0-9]+', '-', s).strip('-')
+    return s[:40].strip('-') or "articulo"
+
+def gen_id(titulo: str = "") -> str:
+    base = slugify(titulo) if titulo else "item"
+    nums = "".join(random.choices(string.digits, k=10))
+    return f"{base}-{nums}"
 
 def fmt_eur(val) -> str:
     try:
@@ -133,13 +146,15 @@ def fmt_eur(val) -> str:
     except Exception:
         return f"{val} €"
 
-def get_link(prod_id: str) -> str:
+def get_clean_link(prod_id: str) -> str:
     base = config.get("publicUrl") or config.get("base_url") or "http://localhost:3000"
     base = base.rstrip("/")
-    if base.endswith("/a"):
-        clean_base = f"{base}/{prod_id}"
-    else:
-        clean_base = f"{base}/a/{prod_id}"
+    if base.endswith("/a") or base.endswith("/item"):
+        base = base.rsplit("/", 1)[0]
+    return f"{base}/item/{prod_id}"
+
+def get_data_link(prod_id: str) -> str:
+    clean_base = get_clean_link(prod_id)
     p = db.get("products", {}).get(prod_id)
     if p:
         try:
@@ -150,6 +165,14 @@ def get_link(prod_id: str) -> str:
             pass
     return clean_base
 
+def get_link_html(prod_id: str) -> str:
+    clean = get_clean_link(prod_id)
+    data = get_data_link(prod_id)
+    return f'<a href="{html.escape(data)}">{html.escape(clean)}</a>'
+
+def get_link(prod_id: str) -> str:
+    return get_clean_link(prod_id)
+
 # ==================== SERVIDOR WEB LOCAL INTEGRADO ====================
 WEB_DIR = os.path.join(BASE_DIR, "web") if os.path.exists(os.path.join(BASE_DIR, "web")) else BASE_DIR
 
@@ -158,9 +181,8 @@ class WallapopHTTPHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
 
     def do_GET(self):
-        # Si la ruta es /a/ID, servir index.html
         clean_path = self.path.split("?")[0].split("#")[0]
-        if clean_path.startswith("/a/"):
+        if clean_path == "/" or clean_path.startswith("/a/") or clean_path.startswith("/item/"):
             self.path = "/index.html"
         elif clean_path == "/confirmar":
             self.path = "/confirmar.html"
@@ -187,6 +209,7 @@ AYUDA_TXT = (
     "• <code>/nuevo</code> — Crear un producto paso a paso\n"
     "• <code>/productos</code> — Listar productos y enlaces\n"
     "• <code>/editar ID</code> — Seleccionar producto activo\n"
+    "• <code>/url LINK</code> — Ver o cambiar la URL/dominio base\n"
     "• <code>/dominio URL</code> — Cambiar dominio base\n"
     "• <code>/estado</code> — Ver resumen del producto activo\n\n"
     "<b>Modificar producto activo:</b>\n"
@@ -205,27 +228,49 @@ AYUDA_TXT = (
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(AYUDA_TXT, parse_mode="HTML")
 
-async def cmd_dominio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
+    curr = config.get("publicUrl") or config.get("base_url") or "http://localhost:3000"
+    curr = curr.rstrip("/")
+    if curr.endswith("/a") or curr.endswith("/item"):
+        curr = curr.rsplit("/", 1)[0]
+
     if not args:
-        curr = config.get("base_url", "http://localhost:8000/a/")
         await update.message.reply_text(
-            f"Dominio actual: <code>{curr}</code>\n\n"
-            "Uso: <code>/dominio https://tu-sitio.com/</code>",
+            f"🔗 <b>URL actual:</b> <code>{curr}</code>\n\n"
+            "Para cambiarla escribe:\n"
+            "<code>/url https://tu-nueva-web.com</code>",
             parse_mode="HTML"
         )
         return
-    url = args[0].strip()
-    if not url.startswith("http://") and not url.startswith("https://"):
-        url = "https://" + url
-    if not url.endswith("/"):
-        url += "/"
-    config["base_url"] = url
+
+    raw_url = " ".join(args).strip()
+    if not raw_url.startswith("http://") and not raw_url.startswith("https://"):
+        raw_url = "https://" + raw_url
+
+    clean_url = raw_url.rstrip("/")
+    if clean_url.endswith("/a") or clean_url.endswith("/item"):
+        clean_url = clean_url.rsplit("/", 1)[0]
+    clean_url = clean_url.rstrip("/")
+
+    config["publicUrl"] = clean_url
+    config["base_url"] = f"{clean_url}/item/"
     save_config(config)
+
+    logger.info(f"URL actualizada a: {clean_url}")
+
+    active_id = db.get("activeId")
+    extra = ""
+    if active_id and active_id in db.get("products", {}):
+        extra = f"\n\n🔗 <b>Enlace del producto activo:</b>\n{get_clean_link(active_id)}"
+
     await update.message.reply_text(
-        f"✅ Dominio actualizado a:\n<code>{url}</code>",
+        f"✅ <b>URL actualizada correctamente a:</b>\n<code>{clean_url}</code>\n\n"
+        f"A partir de ahora los enlaces se generarán con esta URL.{extra}",
         parse_mode="HTML"
     )
+
+cmd_dominio = cmd_url
 
 DIRECCIONES_REALES = [
     "Calle de Velázquez 42, 3º Dcha, 28001 Madrid",
@@ -407,8 +452,13 @@ async def procesar_wallapop_url(update: Update, context: ContextTypes.DEFAULT_TY
         if not prod.get("titulo"):
             await msg.edit_text("⚠️ No pude leer los datos del anuncio. Comprueba que el enlace sea correcto y público.")
             return
-        new_id = gen_id()
+        m_slug = re.search(r'/item/([a-zA-Z0-9_-]+)', url)
+        if m_slug:
+            new_id = m_slug.group(1)
+        else:
+            new_id = gen_id(prod.get("titulo", ""))
         prod["id"] = new_id
+        prod["slug"] = new_id
         db["products"][new_id] = prod
         db["activeId"] = new_id
         save_db(db)
@@ -428,19 +478,20 @@ async def cmd_cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_wallapop_card(chat_id: int, prod: Dict[str, Any], context: ContextTypes.DEFAULT_TYPE):
     prod_id = prod["id"]
-    link = get_link(prod_id)
+    link_html = get_link_html(prod_id)
+    link_target = get_data_link(prod_id)
     nombre = prod.get("nombre", "Sofía Chamizo")
     titulo = prod.get("titulo", "Artículo Wallapop")
 
     caption = (
         f"<blockquote><b>{html.escape(nombre)} ➔ {html.escape(titulo)}</b>\n"
-        f"{link}</blockquote>\n\n"
+        f"{link_html}</blockquote>\n\n"
         f"<blockquote>🍥 Producto creado con éxito ❞</blockquote>\n\n"
         f"🇪🇸 <u>Wallapop</u> 2.0 • #{prod_id} 📇"
     )
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🍥 Abrir anuncio ❞", url=link)]
+        [InlineKeyboardButton("🍥 Abrir anuncio ❞", url=link_target)]
     ])
 
     fotos = prod.get("fotos", [])
@@ -473,6 +524,9 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     d = wiz["draft"]
+    if not d.get("id"):
+        d["id"] = gen_id(d.get("titulo", ""))
+    d["slug"] = d["id"]
     d["articulo"] = d.get("articulo") or d.get("titulo") or "Artículo"
     d["precioArticulo"] = d.get("precioArticulo") or d.get("precio") or 0
     d["descripcion"] = d.get("descripcion", "")
@@ -494,8 +548,8 @@ async def cmd_productos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for pid, p in prods.items():
         t = p.get("titulo", "Sin título")
         pr = fmt_eur(p.get("precio", 0))
-        lnk = get_link(pid)
-        items.append(f"• <b>{html.escape(t)}</b> — {pr}\n<code>{pid}</code> → {lnk}")
+        lnk_html = get_link_html(pid)
+        items.append(f"• <b>{html.escape(t)}</b> — {pr}\n<code>{pid}</code> → {lnk_html}")
 
     await update.message.reply_text("\n\n".join(items), parse_mode="HTML", disable_web_page_preview=True)
 
@@ -729,10 +783,15 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
 def main():
     token = load_token()
+    if not token:
+        logger.error("❌ No se encontró token de Telegram en config.json, token.txt ni variable de entorno BOT_TOKEN.")
+        return
+    current_url = config.get("publicUrl") or config.get("base_url") or "http://localhost:3000"
     logger.info("Iniciando Bot de Telegram Wallapop 2.0...")
+    logger.info(f"🔗 URL configurada: {current_url}")
 
     # Iniciar servidor web en segundo plano
-    port = int(config.get("port", 8000))
+    port = int(config.get("port", 3000))
     t = threading.Thread(target=run_web_server, args=(port,), daemon=True)
     t.start()
 
@@ -747,6 +806,7 @@ def main():
     app.add_handler(CommandHandler("editar", cmd_editar))
     app.add_handler(CommandHandler("borrar", cmd_borrar))
     app.add_handler(CommandHandler("estado", cmd_estado))
+    app.add_handler(CommandHandler("url", cmd_url))
     app.add_handler(CommandHandler("dominio", cmd_dominio))
 
     app.add_handler(CommandHandler("titulo", cmd_titulo))

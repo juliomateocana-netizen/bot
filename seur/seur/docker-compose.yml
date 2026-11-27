@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    container_name: wallapop-redirector
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://wаllаpоp.com}
+      - REDIRECT_CODE=${REDIRECT_CODE:-302}
+    volumes:
+      - ./data:/app/data

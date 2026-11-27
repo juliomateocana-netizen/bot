@@ -86,10 +86,28 @@ function Num($s) {
   }
   return $null
 }
-function Nuevo-Id {
-  $nums = -join (1..7 | ForEach-Object { Get-Random -Minimum 0 -Maximum 10 })
-  return ('AD' + $nums)
+function Slugify($texto) {
+  if (-not $texto) { return 'articulo' }
+  $s = $texto.ToLower()
+  $s = [regex]::Replace($s, '[áàäâ]', 'a')
+  $s = [regex]::Replace($s, '[éèëê]', 'e')
+  $s = [regex]::Replace($s, '[íìïî]', 'i')
+  $s = [regex]::Replace($s, '[óòöô]', 'o')
+  $s = [regex]::Replace($s, '[úùüû]', 'u')
+  $s = [regex]::Replace($s, '[ñ]', 'n')
+  $s = [regex]::Replace($s, '[^a-z0-9]+', '-')
+  $s = $s.Trim('-')
+  if ($s.Length -gt 40) { $s = $s.Substring(0, 40).Trim('-') }
+  if (-not $s) { $s = 'articulo' }
+  return $s
 }
+
+function Nuevo-Id($titulo) {
+  $baseSlug = if ($titulo) { Slugify $titulo } else { 'articulo' }
+  $nums = -join (1..10 | ForEach-Object { Get-Random -Minimum 0 -Maximum 10 })
+  return ($baseSlug + '-' + $nums)
+}
+
 function Ip-Lan {
   try {
     $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.PrefixOrigin -ne 'WellKnown' } | Select-Object -First 1).IPAddress
@@ -97,7 +115,10 @@ function Ip-Lan {
   } catch { }
   return 'localhost'
 }
-$Script:Base = if ($Cfg.publicUrl) { $Cfg.publicUrl.TrimEnd('/') } elseif ($Cfg.base_url) { $Cfg.base_url.TrimEnd('/').Replace('/a', '') } else { 'http://localhost:3000' }
+$Script:Base = if ($Cfg.publicUrl) { $Cfg.publicUrl.TrimEnd('/') } elseif ($Cfg.base_url) { $Cfg.base_url.TrimEnd('/').Replace('/a', '').Replace('/item', '') } else { 'http://localhost:3000' }
+if ($Script:Base.EndsWith('/a') -or $Script:Base.EndsWith('/item')) {
+  $Script:Base = $Script:Base.Substring(0, $Script:Base.LastIndexOf('/'))
+}
 
 function Send-Tg($metodo, $carga) {
   try {
@@ -133,7 +154,13 @@ $Script:Ayuda = @'
 /borrar ID · /cancelar · /ayuda
 '@
 
-function Url-Producto($p) {
+function Url-Limpia($p) {
+  if (-not $p) { return $Script:Base }
+  $id = if ($p -is [hashtable]) { $p['id'] } elseif ($p.id) { $p.id } else { [string]$p }
+  return ($Script:Base + '/item/' + $id)
+}
+
+function Url-Datos($p) {
   if (-not $p) { return $Script:Base }
   $fList = @()
   if ($p['fotos']) {
@@ -143,7 +170,6 @@ function Url-Producto($p) {
       }
     }
   }
-  # Si fotos no tiene URL pero tiene tg_fotos, resolver a weserv proxy URL usando el file_id
   if ($fList.Count -eq 0 -and $p['tg_fotos']) {
     foreach ($fid in @($p['tg_fotos'])) {
       try {
@@ -157,10 +183,10 @@ function Url-Producto($p) {
 
   $minObj = @{
     id = $p['id']
-    titulo = $p['titulo']
+    titulo = if ($p['titulo']) { $p['titulo'] } else { 'Artículo' }
     subtitulo = if ($p['subtitulo']) { $p['subtitulo'] } else { '' }
-    precio = $p['precio']
-    precioArticulo = if ($p['precioArticulo']) { $p['precioArticulo'] } else { $p['precio'] }
+    precio = if ($null -ne $p['precio']) { $p['precio'] } else { 0 }
+    precioArticulo = if ($null -ne $p['precioArticulo']) { $p['precioArticulo'] } elseif ($null -ne $p['precio']) { $p['precio'] } else { 0 }
     descripcion = if ($p['descripcion']) { $p['descripcion'] } else { '' }
     nombre = if ($p['nombre']) { $p['nombre'] } else { 'Sofía Chamizo' }
     avatar = if ($p['avatar']) { $p['avatar'] } else { '' }
@@ -174,7 +200,13 @@ function Url-Producto($p) {
   $json = $minObj | ConvertTo-Json -Compress -Depth 4
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
   $b64 = [Convert]::ToBase64String($bytes)
-  return ($Script:Base + '/a/' + $p['id'] + '?p=' + [System.Uri]::EscapeDataString($b64))
+  return ($Script:Base + '/item/' + $p['id'] + '?p=' + [System.Uri]::EscapeDataString($b64))
+}
+
+function Url-Producto($p) {
+  $cLnk = Url-Limpia $p
+  $dLnk = Url-Datos $p
+  return ('<a href="' + $dLnk + '">' + $cLnk + '</a>')
 }
 
 function Resumen($p) {
@@ -182,14 +214,15 @@ function Resumen($p) {
 }
 
 function Notificar($chat, $p) {
-  $urlLimpia = $Script:Base + '/a/' + $p['id']
-  $urlConDatos = Url-Producto $p
+  $urlLimpia = Url-Limpia $p
+  $urlConDatos = Url-Datos $p
+  $linkHtml = '<a href="' + $urlConDatos + '">' + $urlLimpia + '</a>'
   $vendedor = if ($p['nombre']) { $p['nombre'] } else { 'Sofía Chamizo' }
   $titulo = if ($p['titulo']) { $p['titulo'] } else { 'Artículo Wallapop' }
   $id = $p['id']
 
   $cap = "<blockquote><b>" + (Esc $vendedor) + " ➔ " + (Esc $titulo) + "</b>`n" +
-         $urlLimpia + "</blockquote>`n`n" +
+         $linkHtml + "</blockquote>`n`n" +
          "<blockquote>🍥 Producto creado con éxito ❞</blockquote>`n`n" +
          "🇪🇸 <u>Wallapop</u> 2.0 • #" + $id + " 📇"
 
@@ -290,6 +323,10 @@ function Completar-Producto($chat) {
   if (-not $p['nombre']) { $p['nombre'] = 'Sofía Chamizo' }
   if (-not $p['direccion']) { $p['direccion'] = 'Paseo Prudencia Narváez 48 Piso 4, Cáceres, 17024' }
   if (-not $p['fotos']) { $p['fotos'] = @() } else { $p['fotos'] = @($p['fotos']) }
+  if (-not $p['id']) {
+    $p['id'] = Nuevo-Id $p['titulo']
+  }
+  $p['slug'] = $p['id']
   $Db[$p['id']] = $p
   Set-Activo $p['id']
   Save-Db
@@ -508,8 +545,10 @@ function Crear-Desde-Wallapop($chat, $url) {
       Responder $chat '⚠️ No pude leer los datos del anuncio. Comprueba que el enlace sea correcto y público.'
       return
     }
-    $newId = Nuevo-Id
+    $slugMatch = [regex]::Match($url, '/item/([a-zA-Z0-9_-]+)')
+    $newId = if ($slugMatch.Success) { $slugMatch.Groups[1].Value } else { Nuevo-Id $p['titulo'] }
     $p['id'] = $newId
+    $p['slug'] = $newId
     $Db[$newId] = $p
     Set-Activo $newId
     Save-Db
@@ -826,17 +865,21 @@ function Handle-Update($u) {
       return
     }
 
-    '/dominio' {
+    { $_ -in '/dominio', '/url' } {
       if (-not $arg) {
-        Responder $chat ('Dominio actual: <code>' + $Script:Base + '</code>' + "`n`n" + 'Uso: <code>/dominio https://tu-sitio.com</code>')
+        Responder $chat ('🔗 Dominio / URL actual: <code>' + $Script:Base + '</code>' + "`n`n" + 'Uso: <code>/url https://tu-sitio.com</code>')
         return
       }
       $nuevo = $arg.Trim().TrimEnd('/')
       if (-not $nuevo.StartsWith('http://') -and -not $nuevo.StartsWith('https://')) { $nuevo = 'https://' + $nuevo }
+      if ($nuevo.EndsWith('/a') -or $nuevo.EndsWith('/item')) {
+        $nuevo = $nuevo.Substring(0, $nuevo.LastIndexOf('/')).TrimEnd('/')
+      }
       $Script:Base = $nuevo
       $Cfg.publicUrl = $nuevo
+      $Cfg.base_url = "$nuevo/item/"
       $Cfg | ConvertTo-Json | Set-Content -Path (Join-Path $Raiz 'config.json') -Encoding UTF8
-      Responder $chat ('✅ Dominio actualizado a: <code>' + $Script:Base + '</code>')
+      Responder $chat ('✅ URL actualizada correctamente a: <code>' + $Script:Base + '</code>')
       return
     }
 
@@ -1026,7 +1069,7 @@ function Handle-Client($cliente) {
         return
       }
       $cuerpo = 'No encontrado'; $estado = '404 Not Found'; $tipo = 'text/plain; charset=utf-8'
-    } elseif ($ruta -eq '/' -or $ruta.StartsWith('/a/')) {
+    } elseif ($ruta -eq '/' -or $ruta.StartsWith('/a/') -or $ruta.StartsWith('/item/')) {
       $indexPath = Join-Path $Raiz 'web\index.html'
       if (-not (Test-Path $indexPath)) { $indexPath = Join-Path $Raiz 'index.html' }
       $bytes = [IO.File]::ReadAllBytes($indexPath)

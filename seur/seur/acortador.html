@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acortador & Redirecciones · Panel</title>
+  <link rel="icon" href="https://lh3.googleusercontent.com/eiHGogXLz3iBRZhKrdr7FOkw6q5P_iuGSwqGWmd1yRzMcc-B7V6xIKR9wzuqDrD61K4=w300">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Scripts externos con carga diferida y degradación elegante en caso de fallo -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+
+  <style>
+    /* ==========================================================================
+       VARIABLES Y PALETA DE COLORES
+       ========================================================================== */
+    :root {
+      --wp-brand: #13C1AC;
+      --wp-brand-hover: #0fb39e;
+      --wp-brand-high: #015354;
+      --wp-brand-mid: #038673;
+      --wp-brand-low: #3DD2BA;
+      --wp-brand-subtle: #CCFAF1;
+      --wp-brand-light: #E6FAF6;
+      --wp-content-high: #29363D;
+      --wp-content-mid: #5C7A89;
+      --wp-content-low: #A3B8C1;
+      --wp-bg-low: #F0F3F5;
+      --wp-bg-card: #FFFFFF;
+      --wp-line: #E3E9EC;
+      --wp-negative: #CE3528;
+      --wp-negative-bg: #FDEDEB;
+      --wp-ok: #228618;
+      --wp-ok-bg: #EAF7E9;
+      --wp-warning: #D97706;
+      --wp-warning-bg: #FEF3C7;
+      --wp-grey-bg: #F1F5F9;
+      --wp-grey-text: #64748B;
+      --wp-grey-border: #CBD5E1;
+      --wp-shadow-sm: 0 2px 6px rgba(41, 54, 61, 0.06);
+      --wp-shadow-md: 0 6px 18px rgba(41, 54, 61, 0.08);
+      --wp-shadow-lg: 0 12px 30px rgba(41, 54, 61, 0.12);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Quicksand', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #F7FAFA;
+      color: var(--wp-content-high);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ==========================================================================
+       CABECERA
+       ========================================================================== */
+    header {
+      background: #FFFFFF;
+      border-bottom: 1px solid var(--wp-line);
+      padding: 14px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--wp-shadow-sm);
+    }
+
+    .header-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .logo-badge {
+      background: var(--wp-brand);
+      color: #FFFFFF;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 20px;
+      box-shadow: 0 3px 8px rgba(19, 193, 172, 0.35);
+    }
+
+    .brand-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--wp-brand-high);
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title span.domain-tag {
+      font-size: 13px;
+      background: var(--wp-brand-subtle);
+      color: var(--wp-brand-mid);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    /* ==========================================================================
+       CONTENEDOR PRINCIPAL Y TARJETAS
+       ========================================================================== */
+    main {
+      flex: 1;
+      max-width: 1000px;
+      width: 100%;
+      margin: 24px auto;
+      padding: 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--wp-bg-card);
+      border: 1px solid var(--wp-line);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--wp-shadow-sm);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .card:hover {
+      box-shadow: var(--wp-shadow-md);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--wp-content-high);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title svg {
+      width: 22px;
+      height: 22px;
+      color: var(--wp-brand);
+    }
+
+    /* ==========================================================================
+       CAMPOS (SIN ETIQUETAS FORM)
+       ========================================================================== */
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .field-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--wp-content-high);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .field-hint {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--wp-content-mid);
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: stretch;
+    }
+
+    .input-text {
+      width: 100%;
+      height: 46px;
+      padding: 0 14px;
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--wp-content-high);
+      background: #FFFFFF;
+      border: 1.5px solid var(--wp-line);
+      border-radius: var(--radius-md);
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .input-text:focus {
+      border-color: var(--wp-brand);
+      box-shadow: 0 0 0 3px rgba(19, 193, 172, 0.18);
+    }
+
+    /* Estado de error en inputs */
+    .input-text.has-error,
+    .input-group.has-error .input-text {
+      border-color: var(--wp-negative) !important;
+      background-color: var(--wp-negative-bg) !important;
+    }
+
+    .input-group.has-error .input-prefix {
+      border-color: var(--wp-negative) !important;
+      background-color: #FCE8E6 !important;
+      color: var(--wp-negative) !important;
+    }
+
+    .error-msg {
+      font-size: 12.5px;
+      color: var(--wp-negative);
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .error-msg.visible {
+      display: flex;
+    }
+
+    /* Prefijo del dominio fijo en gris */
+    .input-group {
+      display: flex;
+      align-items: stretch;
+      width: 100%;
+    }
+
+    .input-prefix {
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      background: var(--wp-grey-bg);
+      border: 1.5px solid var(--wp-grey-border);
+      border-right: none;
+      border-top-left-radius: var(--radius-md);
+      border-bottom-left-radius: var(--radius-md);
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--wp-grey-text);
+      user-select: none;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .input-group .input-text {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+      border-color: var(--wp-grey-border);
+    }
+
+    .action-btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* ==========================================================================
+       BOTONES Y CONTROLES
+       ========================================================================== */
+    .btn {
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: all 0.18s ease;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      pointer-events: none;
+      filter: grayscale(40%);
+    }
+
+    .btn-primary {
+      background: var(--wp-brand);
+      color: #FFFFFF;
+      border-color: var(--wp-brand);
+      box-shadow: 0 3px 8px rgba(19, 193, 172, 0.25);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--wp-brand-hover);
+      border-color: var(--wp-brand-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: var(--wp-bg-low);
+      color: var(--wp-content-high);
+      border-color: var(--wp-line);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #E5EBEF;
+      border-color: #D3DBE0;
+    }
+
+    .btn-outline-brand {
+      background: transparent;
+      color: var(--wp-brand-mid);
+      border-color: var(--wp-brand);
+    }
+
+    .btn-outline-brand:hover:not(:disabled) {
+      background: var(--wp-brand-subtle);
+    }
+
+    .btn-danger-outline {
+      background: transparent;
+      color: var(--wp-negative);
+      border-color: #F8B4AF;
+    }
+
+    .btn-danger-outline:hover:not(:disabled) {
+      background: var(--wp-negative-bg);
+      border-color: var(--wp-negative);
+    }
+
+    .btn-sm {
+      padding: 6px 11px;
+      font-size: 12.5px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ==========================================================================
+       ENLACE FINAL Y ACCIONES
+       ========================================================================== */
+    .final-link-box {
+      background: var(--wp-brand-light);
+      border: 1.5px solid rgba(19, 193, 172, 0.4);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .final-link-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .final-link-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--wp-brand-high);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* Toggle switch para copiar sin https:// */
+    .toggle-container {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--wp-content-high);
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 38px;
+      height: 22px;
+      background: #CBD5E1;
+      border-radius: var(--radius-full);
+      transition: background-color 0.2s ease;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2.5px;
+      left: 2.5px;
+      width: 17px;
+      height: 17px;
+      background: #FFFFFF;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-container.active .toggle-switch {
+      background: var(--wp-brand);
+    }
+
+    .toggle-container.active .toggle-switch::after {
+      transform: translateX(16px);
+    }
+
+    .final-link-display {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--wp-brand-high);
+      word-break: break-all;
+      background: #FFFFFF;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(19, 193, 172, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .final-actions-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* ==========================================================================
+       DNS CHECKER BADGES
+       ========================================================================== */
+    .dns-result-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .dns-result-box.idle {
+      background: var(--wp-bg-low);
+      color: var(--wp-content-mid);
+    }
+
+    .dns-result-box.ok {
+      background: var(--wp-ok-bg);
+      color: var(--wp-ok);
+      border: 1px solid #B8E4B5;
+    }
+
+    .dns-result-box.error {
+      background: var(--wp-negative-bg);
+      color: var(--wp-negative);
+      border: 1px solid #F8B4AF;
+    }
+
+    .dns-result-box.loading {
+      background: var(--wp-warning-bg);
+      color: var(--wp-warning);
+    }
+
+    /* ==========================================================================
+       SECCIÓN REDIRECCIONES (PUBLICACIÓN NETLIFY)
+       ========================================================================== */
+    .redirects-table-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--wp-line);
+      border-radius: var(--radius-md);
+      margin-top: 12px;
+      margin-bottom: 16px;
+    }
+
+    .redirects-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      text-align: left;
+    }
+
+    .redirects-table th {
+      background: var(--wp-bg-low);
+      color: var(--wp-content-high);
+      font-weight: 700;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--wp-line);
+      white-space: nowrap;
+    }
+
+    .redirects-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--wp-line);
+      color: var(--wp-content-high);
+      vertical-align: middle;
+    }
+
+    .redirects-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .redirects-table tr:hover td {
+      background: #FAFCFC;
+    }
+
+    .alias-pill {
+      font-weight: 700;
+      color: var(--wp-brand-high);
+      background: var(--wp-brand-subtle);
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      display: inline-block;
+      font-size: 13px;
+    }
+
+    .target-url-text {
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block;
+      color: var(--wp-content-mid);
+    }
+
+    .select-status {
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--wp-line);
+      background: #FFFFFF;
+      color: var(--wp-content-high);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .preview-code-block {
+      background: #1E293B;
+      color: #E2E8F0;
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      font-family: Consolas, Monaco, 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 160px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+
+    /* ==========================================================================
+       HISTORIAL LOCAL
+       ========================================================================== */
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .history-item {
+      background: #FFFFFF;
+      border: 1px solid var(--wp-line);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+      flex-wrap: wrap;
+    }
+
+    .history-item:hover {
+      border-color: var(--wp-brand-low);
+      background: #FAFCFC;
+    }
+
+    .history-info {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .history-main-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .history-alias {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--wp-brand-high);
+    }
+
+    .history-date {
+      font-size: 11.5px;
+      color: var(--wp-content-low);
+      font-weight: 500;
+    }
+
+    .history-dest {
+      font-size: 12.5px;
+      color: var(--wp-content-mid);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 480px;
+    }
+
+    .history-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: var(--wp-content-mid);
+      font-size: 13.5px;
+      background: var(--wp-bg-low);
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--wp-line);
+    }
+
+    /* ==========================================================================
+       MODAL DE CÓDIGO QR
+       ========================================================================== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(41, 54, 61, 0.6);
+      backdrop-filter: blur(4px);
+      display: none;
+      place-items: center;
+      z-index: 100;
+      padding: 16px;
+    }
+
+    .modal-overlay.active {
+      display: grid;
+    }
+
+    .modal-content {
+      background: #FFFFFF;
+      width: 100%;
+      max-width: 380px;
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--wp-shadow-lg);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.92); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .qr-render-area {
+      min-width: 200px;
+      min-height: 200px;
+      background: #FFFFFF;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--wp-line);
+      display: grid;
+      place-items: center;
+    }
+
+    .qr-render-area img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .qr-url-text {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--wp-brand-high);
+      word-break: break-all;
+    }
+
+    /* ==========================================================================
+       PIE DE PÁGINA Y GUÍA NETLIFY
+       ========================================================================== */
+    footer {
+      background: #FFFFFF;
+      border-top: 1px solid var(--wp-line);
+      padding: 36px 20px;
+      margin-top: 32px;
+    }
+
+    .footer-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .deploy-guide {
+      background: var(--wp-bg-low);
+      border-radius: var(--radius-lg);
+      padding: 20px 24px;
+      border-left: 5px solid var(--wp-brand);
+    }
+
+    .deploy-guide h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--wp-content-high);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .deploy-steps {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .deploy-steps li {
+      font-size: 13.5px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.45;
+    }
+
+    .step-number {
+      background: var(--wp-brand);
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 11px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .notice-box {
+      background: var(--wp-warning-bg);
+      border: 1px solid #FDE68A;
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #92400E;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
+    }
+
+    .notice-box svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* ==========================================================================
+       TOAST DE NOTIFICACIÓN
+       ========================================================================== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1E293B;
+      color: #FFFFFF;
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: var(--wp-shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 200;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* ==========================================================================
+       RESPONSIVE
+       ========================================================================== */
+    @media (max-width: 680px) {
+      .header-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .final-link-display {
+        font-size: 16px;
+      }
+      .final-actions-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .final-actions-row .btn {
+        width: 100%;
+      }
+      .history-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .history-actions {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       CABECERA CON IDENTIDAD Y ESTADO DNS
+       ========================================================================== -->
+  <header>
+    <div class="header-inner">
+      <div class="brand-logo">
+        <div class="logo-badge">W</div>
+        <div class="brand-title">
+          <span id="headerBrandTitle"></span>
+          <span class="domain-tag">Acortador & Redirecciones</span>
+        </div>
+      </div>
+
+      <!-- Comprobar Dominio en vivo por DNS-over-HTTPS -->
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div id="dnsStatusBadge" class="dns-result-box idle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span id="dnsStatusText">Estado DNS sin verificar</span>
+        </div>
+        <button id="btnCheckDNS" class="btn btn-secondary btn-sm" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+          Comprobar dominio
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       CONTENIDO PRINCIPAL (SIN ETIQUETAS FORM)
+       ========================================================================== -->
+  <main>
+
+    <!-- TARJETA 1: GENERADOR DEL ENLACE -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Generador de Enlace Corto
+        </h2>
+        <span class="field-hint">Dominio base: <strong id="cardDomainHint"></strong></span>
+      </div>
+
+      <!-- 1. Campo Enlace de destino -->
+      <div class="field-group">
+        <label class="field-label" for="destUrlInput">
+          <span>Enlace de destino</span>
+          <span class="field-hint">URL real del anuncio o publicación</span>
+        </label>
+        <div class="input-wrapper">
+          <input
+            id="destUrlInput"
+            class="input-text"
+            type="text"
+            placeholder="https://es.wallapop.com/item/articulo-ejemplo-123456789"
+            spellcheck="false"
+            autocomplete="off"
+          >
+        </div>
+      </div>
+
+      <!-- 2. Campo Subenlace con prefijo del dominio fijo en gris y botones de asistencia -->
+      <div class="field-group">
+        <label class="field-label" for="subenlaceInput">
+          <span>Subenlace</span>
+          <span class="field-hint">Texto libre y editable (sin espacios ni barras)</span>
+        </label>
+
+        <div class="input-group" id="subenlaceGroup">
+          <!-- Prefijo fijo en gris con el DOMINIO -->
+          <div class="input-prefix" id="domainPrefixDisplay"></div>
+          <input
+            id="subenlaceInput"
+            class="input-text"
+            type="text"
+            placeholder="mi-anuncio-o-codigo"
+            spellcheck="false"
+            autocomplete="off"
+          >
+        </div>
+
+        <!-- Mensaje de error para validación en vivo -->
+        <div id="subenlaceError" class="error-msg">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="subenlaceErrorText">El subenlace no puede estar vacío, ni contener espacios ni barras.</span>
+        </div>
+
+        <div class="action-btn-row">
+          <button id="btnRandomSubenlace" class="btn btn-secondary btn-sm" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><circle cx="12" cy="12" r="2"/></svg>
+            Aleatorio (6 caracteres)
+          </button>
+
+          <button id="btnSlugFromUrl" class="btn btn-secondary btn-sm" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+            Desde la ruta
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Previsualización del enlace final y acciones -->
+      <div class="final-link-box">
+        <div class="final-link-header">
+          <span class="final-link-label">Enlace final compuesto:</span>
+          <!-- Interruptor para copiar sin https:// -->
+          <div id="toggleNoHttps" class="toggle-container" role="checkbox" aria-checked="false" tabindex="0">
+            <div class="toggle-switch"></div>
+            <span>Copiar sin https://</span>
+          </div>
+        </div>
+
+        <div class="final-link-display">
+          <span id="finalLinkText"></span>
+        </div>
+
+        <div class="final-actions-row">
+          <!-- Copiar al portapapeles con fallback -->
+          <button id="btnCopyFinal" class="btn btn-primary" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <span id="btnCopyText">Copiar enlace</span>
+          </button>
+
+          <!-- Abrir en pestaña nueva -->
+          <button id="btnOpenFinal" class="btn btn-secondary" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Abrir en pestaña
+          </button>
+
+          <!-- Generar código QR -->
+          <button id="btnQrFinal" class="btn btn-secondary" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+            Generar QR
+          </button>
+
+          <!-- Añadir directamente a la lista de redirecciones -->
+          <button id="btnAddToList" class="btn btn-outline-brand" type="button" style="margin-left:auto;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Añadir a lista de publicación
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETA 2: PUBLICAR LA REDIRECCIÓN (FORMATO NETLIFY) -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+          Publicar la Redirección (Netlify _redirects)
+        </h2>
+        <span class="field-hint">Pares subenlace/destino para exportación en ZIP</span>
+      </div>
+
+      <!-- Tabla de redirecciones -->
+      <div class="redirects-table-wrapper">
+        <table class="redirects-table">
+          <thead>
+            <tr>
+              <th style="width: 25%;">Subenlace</th>
+              <th style="width: 45%;">URL Destino</th>
+              <th style="width: 15%;">Código HTTP</th>
+              <th style="width: 15%; text-align:center;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="redirectsTableBody">
+            <!-- Rellenado dinámicamente con JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Previsualización del archivo _redirects en tiempo real -->
+      <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <span class="field-label" style="margin-bottom:0;">Previsualización de <code>_redirects</code>:</span>
+        <span class="field-hint">Líneas en formato <code>/subenlace  https://destino  302</code></span>
+      </div>
+      <div id="redirectsPreview" class="preview-code-block"># No hay redirecciones agregadas todavía.</div>
+
+      <!-- Botón de descarga de ZIP -->
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button id="btnDownloadZip" class="btn btn-primary" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Descargar ZIP para Netlify (_redirects + index.html)
+        </button>
+
+        <button id="btnClearRedirects" class="btn btn-secondary btn-sm" type="button">
+          Vaciar lista
+        </button>
+      </div>
+    </div>
+
+    <!-- TARJETA 3: HISTORIAL LOCAL (ÚLTIMOS 12 ENLACES) -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+          Historial Local (Últimos 12 enlaces)
+        </h2>
+        <button id="btnClearHistory" class="btn btn-danger-outline btn-sm" type="button">
+          Vaciar historial
+        </button>
+      </div>
+
+      <div id="historyList" class="history-list">
+        <!-- Renderizado dinámicamente -->
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ==========================================================================
+       MODAL DE CÓDIGO QR
+       ========================================================================== -->
+  <div id="qrModal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 style="font-size: 17px; font-weight:700; color:var(--wp-content-high);">Código QR generado</h3>
+      <div id="qrContainer" class="qr-render-area">
+        <!-- Canvas o imagen del QR renderizada aquí -->
+      </div>
+      <div class="qr-url-text" id="qrModalUrl"></div>
+      <div style="display:flex; gap:10px; width:100%;">
+        <button id="btnCloseQr" class="btn btn-secondary" style="flex:1;" type="button">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       PIE DE PÁGINA: GUÍA PASO A PASO NETLIFY & AVISO 301/302
+       ========================================================================== -->
+  <footer>
+    <div class="footer-inner">
+      <div class="deploy-guide">
+        <h3>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Pasos exactos para publicar en Netlify:
+        </h3>
+        <ol class="deploy-steps">
+          <li>
+            <span class="step-number">1</span>
+            <span>Añade tus pares <strong>subenlace y destino</strong> a la lista y pulsa el botón <strong>"Descargar ZIP para Netlify"</strong>.</span>
+          </li>
+          <li>
+            <span class="step-number">2</span>
+            <span>Abre tu panel en <a href="https://app.netlify.com" target="_blank" rel="noopener" style="color:var(--wp-brand-mid); font-weight:700; text-decoration:underline;">app.netlify.com</a> e inicia sesión con tu cuenta.</span>
+          </li>
+          <li>
+            <span class="step-number">3</span>
+            <span>Entra en tu sitio y ve directamente a la pestaña <strong>Deploys</strong> (o a la sección <em>"Sites &gt; Deploy manually"</em>).</span>
+          </li>
+          <li>
+            <span class="step-number">4</span>
+            <span>Arrastra y suelta el archivo <strong>.zip descargado</strong> directamente en la zona de subida de Netlify. Se desplegará al instante con el archivo <code>_redirects</code> activo.</span>
+          </li>
+        </ol>
+      </div>
+
+      <div class="notice-box">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>
+          <strong>Información sobre códigos de redirección HTTP:</strong>
+          <br>
+          • <strong>Código 302 (Found / Temporal):</strong> Úsalo para <strong>probar</strong>. No se almacena permanentemente en la memoria caché de los navegadores ni de los proveedores, permitiéndote cambiar el destino o corregir errores sin problemas.
+          <br>
+          • <strong>Código 301 (Moved Permanently):</strong> Úsalo únicamente para el enlace <strong>definitivo</strong>. Los navegadores y buscadores cachean agresivamente esta redirección de forma permanente.
+        </div>
+      </div>
+
+      <div style="text-align: center; font-size: 12px; color: var(--wp-content-low); font-weight: 500;">
+        <span id="footerDomainNotice"></span> · Gestor de enlaces y redirecciones sin frameworks
+      </div>
+    </div>
+  </footer>
+
+  <!-- Elemento flotante Toast para feedback de copia -->
+  <div id="toastNotification" class="toast">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#13C1AC" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="toastMsg">Enlace copiado al portapapeles</span>
+  </div>
+
+  <!-- ==========================================================================
+       JAVASCRIPT PURO (SIN FRAMEWORKS NI DEPENDENCIAS RÍGIDAS)
+       ========================================================================== -->
+  <script>
+    /**
+     * ========================================================================
+     * CONSTANTE DE DOMINIO BASE
+     * Las dos letras 'a' son cirílicas (U+0430) y la letra 'o' es cirílica (U+043E).
+     * No convertir a latinas ni normalizar. Constante editable al principio.
+     * ========================================================================
+     */
+    const DOMINIO = 'wаllаpоp.com'; // w\u0430ll\u0430p\u043Ep.com
+
+    // Claves específicas para LocalStorage
+    const STORAGE_KEY_HISTORY = 'wallapop_homoglyph_history';
+    const STORAGE_KEY_REDIRECTS = 'wallapop_homoglyph_redirects';
+    const STORAGE_KEY_NO_HTTPS = 'wallapop_homoglyph_no_https';
+
+    /**
+     * REFERENCIAS AL DOM (Controlado 100% por eventos, sin etiquetas <form>)
+     */
+    const headerBrandTitle = document.getElementById('headerBrandTitle');
+    const cardDomainHint = document.getElementById('cardDomainHint');
+    const domainPrefixDisplay = document.getElementById('domainPrefixDisplay');
+    const footerDomainNotice = document.getElementById('footerDomainNotice');
+
+    const destUrlInput = document.getElementById('destUrlInput');
+    const subenlaceInput = document.getElementById('subenlaceInput');
+    const subenlaceGroup = document.getElementById('subenlaceGroup');
+    const subenlaceError = document.getElementById('subenlaceError');
+    const subenlaceErrorText = document.getElementById('subenlaceErrorText');
+    const finalLinkText = document.getElementById('finalLinkText');
+
+    const btnRandomSubenlace = document.getElementById('btnRandomSubenlace');
+    const btnSlugFromUrl = document.getElementById('btnSlugFromUrl');
+    const toggleNoHttps = document.getElementById('toggleNoHttps');
+
+    const btnCopyFinal = document.getElementById('btnCopyFinal');
+    const btnCopyText = document.getElementById('btnCopyText');
+    const btnOpenFinal = document.getElementById('btnOpenFinal');
+    const btnQrFinal = document.getElementById('btnQrFinal');
+    const btnAddToList = document.getElementById('btnAddToList');
+
+    const btnCheckDNS = document.getElementById('btnCheckDNS');
+    const dnsStatusBadge = document.getElementById('dnsStatusBadge');
+    const dnsStatusText = document.getElementById('dnsStatusText');
+
+    const redirectsTableBody = document.getElementById('redirectsTableBody');
+    const redirectsPreview = document.getElementById('redirectsPreview');
+    const btnDownloadZip = document.getElementById('btnDownloadZip');
+    const btnClearRedirects = document.getElementById('btnClearRedirects');
+
+    const historyList = document.getElementById('historyList');
+    const btnClearHistory = document.getElementById('btnClearHistory');
+
+    const toastNotification = document.getElementById('toastNotification');
+    const toastMsg = document.getElementById('toastMsg');
+
+    const qrModal = document.getElementById('qrModal');
+    const qrContainer = document.getElementById('qrContainer');
+    const qrModalUrl = document.getElementById('qrModalUrl');
+    const btnCloseQr = document.getElementById('btnCloseQr');
+
+    // Estado en memoria
+    let copyWithoutHttps = localStorage.getItem(STORAGE_KEY_NO_HTTPS) === 'true';
+    let redirectsData = [];
+    let historyData = [];
+
+    /**
+     * ========================================================================
+     * INICIALIZACIÓN
+     * ========================================================================
+     */
+    function init() {
+      // Inyectar la constante DOMINIO en los elementos de la interfaz
+      headerBrandTitle.textContent = DOMINIO;
+      cardDomainHint.textContent = DOMINIO;
+      domainPrefixDisplay.textContent = DOMINIO + '/';
+      footerDomainNotice.textContent = DOMINIO;
+
+      // Cargar preferencia de toggle HTTPS
+      updateToggleUi();
+
+      // Cargar Redirecciones de localStorage
+      try {
+        const storedRedirs = localStorage.getItem(STORAGE_KEY_REDIRECTS);
+        if (storedRedirs) {
+          redirectsData = JSON.parse(storedRedirs);
+        }
+      } catch (e) {
+        redirectsData = [];
+      }
+
+      // Cargar Historial de localStorage
+      try {
+        const storedHist = localStorage.getItem(STORAGE_KEY_HISTORY);
+        if (storedHist) {
+          historyData = JSON.parse(storedHist);
+        }
+      } catch (e) {
+        historyData = [];
+      }
+
+      // Generar subenlace aleatorio inicial si está vacío
+      if (!subenlaceInput.value) {
+        subenlaceInput.value = generateRandomSubenlace(6);
+      }
+
+      // Renderizar estado inicial
+      updateFinalLink();
+      renderRedirectsTable();
+      renderHistoryList();
+
+      // Escuchadores de eventos para campos y controles
+      destUrlInput.addEventListener('input', () => {
+        updateFinalLink();
+      });
+
+      subenlaceInput.addEventListener('input', () => {
+        cleanSubenlaceInput();
+        updateFinalLink();
+      });
+
+      btnRandomSubenlace.addEventListener('click', () => {
+        subenlaceInput.value = generateRandomSubenlace(6);
+        cleanSubenlaceInput();
+        updateFinalLink();
+      });
+
+      btnSlugFromUrl.addEventListener('click', () => {
+        const urlVal = destUrlInput.value.trim();
+        if (!urlVal) {
+          showToast('Pega primero una URL de destino para extraer su ruta');
+          return;
+        }
+        const slug = slugifyFromUrl(urlVal);
+        if (slug) {
+          subenlaceInput.value = slug;
+          cleanSubenlaceInput();
+          updateFinalLink();
+        } else {
+          showToast('No se pudo extraer una ruta válida de la URL');
+        }
+      });
+
+      toggleNoHttps.addEventListener('click', () => {
+        copyWithoutHttps = !copyWithoutHttps;
+        localStorage.setItem(STORAGE_KEY_NO_HTTPS, copyWithoutHttps.toString());
+        updateToggleUi();
+        updateFinalLink();
+      });
+
+      btnCopyFinal.addEventListener('click', () => {
+        const textToCopy = getLinkToCopy();
+        copyTextWithFallback(textToCopy, () => {
+          showToast('¡Enlace copiado al portapapeles!');
+          saveToHistory(subenlaceInput.value.trim(), destUrlInput.value.trim());
+        });
+      });
+
+      btnOpenFinal.addEventListener('click', () => {
+        const fullUrl = `https://${DOMINIO}/${subenlaceInput.value.trim()}`;
+        window.open(fullUrl, '_blank', 'noopener');
+      });
+
+      btnQrFinal.addEventListener('click', openQrModal);
+      btnCloseQr.addEventListener('click', closeQrModal);
+      qrModal.addEventListener('click', (e) => {
+        if (e.target === qrModal) closeQrModal();
+      });
+
+      btnAddToList.addEventListener('click', () => {
+        const sub = subenlaceInput.value.trim();
+        let dest = destUrlInput.value.trim();
+
+        if (!validateSubenlace(sub)) {
+          showToast('Introduce un subenlace válido antes de añadirlo');
+          return;
+        }
+
+        if (!dest) {
+          dest = 'https://es.wallapop.com';
+        } else if (!/^https?:\/\//i.test(dest)) {
+          dest = 'https://' + dest;
+        }
+
+        // Si ya existe el mismo subenlace, actualizar destino; de lo contrario añadirlo
+        const existingIndex = redirectsData.findIndex(r => r.subenlace.toLowerCase() === sub.toLowerCase());
+        if (existingIndex >= 0) {
+          redirectsData[existingIndex].dest = dest;
+          showToast(`Se actualizó el subenlace "/${sub}" en la lista`);
+        } else {
+          redirectsData.push({
+            subenlace: sub,
+            dest: dest,
+            code: 302
+          });
+          showToast(`Añadido "/${sub}" a la lista de publicación`);
+        }
+
+        saveRedirects();
+        renderRedirectsTable();
+      });
+
+      btnCheckDNS.addEventListener('click', checkDomainDNS);
+
+      btnDownloadZip.addEventListener('click', downloadDeployZip);
+
+      btnClearRedirects.addEventListener('click', () => {
+        if (redirectsData.length === 0) return;
+        if (confirm('¿Vaciar toda la lista de redirecciones?')) {
+          redirectsData = [];
+          saveRedirects();
+          renderRedirectsTable();
+          showToast('Lista de redirecciones vaciada');
+        }
+      });
+
+      btnClearHistory.addEventListener('click', () => {
+        if (historyData.length === 0) return;
+        if (confirm('¿Vaciar todo el historial local?')) {
+          historyData = [];
+          localStorage.removeItem(STORAGE_KEY_HISTORY);
+          renderHistoryList();
+          showToast('Historial vaciado');
+        }
+      });
+    }
+
+    /**
+     * ========================================================================
+     * UTILIDADES DE SUBENLACE Y LIMPIEZA
+     * Sin espacios ni barras; limpia caracteres inválidos al escribir.
+     * ========================================================================
+     */
+    function cleanSubenlaceInput() {
+      let val = subenlaceInput.value;
+      // Reemplazar espacios y barras inmediatamente por guiones
+      val = val.replace(/[\/\s\\]+/g, '-');
+      // Quitar caracteres no alfanuméricos salvo guiones y subrayados
+      val = val.replace(/[^a-zA-Z0-9_-]/g, '');
+      subenlaceInput.value = val;
+    }
+
+    function generateRandomSubenlace(length = 6) {
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      let res = '';
+      for (let i = 0; i < length; i++) {
+        res += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return res;
+    }
+
+    function slugifyFromUrl(rawUrl) {
+      try {
+        let clean = rawUrl.trim();
+        if (!/^https?:\/\//i.test(clean)) {
+          clean = 'https://' + clean;
+        }
+        const parsed = new URL(clean);
+        // Filtrar segmentos vacíos del pathname
+        const parts = parsed.pathname.split('/').filter(p => p.trim().length > 0);
+        if (parts.length === 0) return '';
+        let lastSegment = decodeURIComponent(parts[parts.length - 1]);
+        // Quitar extensiones de archivo si existieran (.html, etc.)
+        lastSegment = lastSegment.replace(/\.[a-zA-Z0-9]+$/, '');
+        // Quitar acentos/tildes y transformar en subenlace legible con guiones
+        return lastSegment
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '') // Eliminar marcas diacríticas
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, '-') // Cambiar espacios y no alfanuméricos a guiones
+          .replace(/-+/g, '-') // Colapsar guiones repetidos
+          .replace(/^-+|-+$/g, ''); // Recortar guiones extremos
+      } catch (err) {
+        return '';
+      }
+    }
+
+    function validateSubenlace(sub) {
+      if (!sub || sub.trim().length === 0) return false;
+      if (/\s/.test(sub) || /[\/\\]/.test(sub)) return false;
+      return true;
+    }
+
+    /**
+     * ========================================================================
+     * ACTUALIZACIÓN DEL ENLACE FINAL Y VALIDACIÓN EN VIVO
+     * ========================================================================
+     */
+    function updateFinalLink() {
+      const sub = subenlaceInput.value.trim();
+      const isValid = validateSubenlace(sub);
+
+      if (!isValid) {
+        subenlaceGroup.classList.add('has-error');
+        subenlaceError.classList.add('visible');
+        btnCopyFinal.disabled = true;
+        btnOpenFinal.disabled = true;
+        btnQrFinal.disabled = true;
+
+        if (sub.length === 0) {
+          subenlaceErrorText.textContent = 'El subenlace no puede quedar vacío.';
+        } else if (/\s/.test(sub)) {
+          subenlaceErrorText.textContent = 'El subenlace no puede contener espacios.';
+        } else if (/[\/\\]/.test(sub)) {
+          subenlaceErrorText.textContent = 'El subenlace no puede contener barras.';
+        } else {
+          subenlaceErrorText.textContent = 'El subenlace contiene caracteres no válidos.';
+        }
+      } else {
+        subenlaceGroup.classList.remove('has-error');
+        subenlaceError.classList.remove('visible');
+        btnCopyFinal.disabled = false;
+        btnOpenFinal.disabled = false;
+        btnQrFinal.disabled = false;
+      }
+
+      const displayPrefix = copyWithoutHttps ? DOMINIO : `https://${DOMINIO}`;
+      finalLinkText.textContent = `${displayPrefix}/${sub}`;
+    }
+
+    function updateToggleUi() {
+      if (copyWithoutHttps) {
+        toggleNoHttps.classList.add('active');
+        toggleNoHttps.setAttribute('aria-checked', 'true');
+      } else {
+        toggleNoHttps.classList.remove('active');
+        toggleNoHttps.setAttribute('aria-checked', 'false');
+      }
+    }
+
+    function getLinkToCopy() {
+      const sub = subenlaceInput.value.trim();
+      if (copyWithoutHttps) {
+        return `${DOMINIO}/${sub}`;
+      }
+      return `https://${DOMINIO}/${sub}`;
+    }
+
+    /**
+     * ========================================================================
+     * PORTAPAPELES CON FALLBACK SEGURO
+     * ========================================================================
+     */
+    function copyTextWithFallback(text, onSuccess) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text)
+          .then(() => {
+            if (onSuccess) onSuccess();
+          })
+          .catch(() => {
+            fallbackExecCommandCopy(text, onSuccess);
+          });
+      } else {
+        fallbackExecCommandCopy(text, onSuccess);
+      }
+    }
+
+    function fallbackExecCommandCopy(text, onSuccess) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful && onSuccess) {
+          onSuccess();
+        } else {
+          showToast('Copia manual: ' + text);
+        }
+      } catch (err) {
+        showToast('Copia manual: ' + text);
+      }
+      document.body.removeChild(textArea);
+    }
+
+    function showToast(message) {
+      toastMsg.textContent = message;
+      toastNotification.classList.add('show');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        toastNotification.classList.remove('show');
+      }, 2800);
+    }
+
+    /**
+     * ========================================================================
+     * PUNYCODE NATIVO
+     * Convierte el dominio IDN con caracteres cirílicos a punycode (xn--...)
+     * ========================================================================
+     */
+    function getPunycode(domainStr) {
+      try {
+        const parsed = new URL('https://' + domainStr);
+        return parsed.hostname;
+      } catch (e) {
+        return domainStr;
+      }
+    }
+
+    /**
+     * ========================================================================
+     * COMPROBACIÓN REAL DE DOMINIO DNS (DNS-OVER-HTTPS)
+     * Consulta el DNS real y si falla la consulta directa cirílica, reintenta con Punycode.
+     * ========================================================================
+     */
+    async function queryDoH(domainName) {
+      // Intento 1: Cloudflare DoH (soporta IDN y Punycode)
+      try {
+        const resCf = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domainName)}&type=A`, {
+          headers: { 'Accept': 'application/dns-json' },
+          cache: 'no-store'
+        });
+        if (resCf.ok) {
+          return await resCf.json();
+        }
+      } catch (e) {
+        // Fallback a Google DoH
+      }
+
+      // Intento 2: Google DoH
+      const resGg = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domainName)}&type=A`, {
+        cache: 'no-store'
+      });
+      if (resGg.ok) {
+        return await resGg.json();
+      }
+
+      throw new Error('No se pudo obtener respuesta DoH');
+    }
+
+    async function checkDomainDNS() {
+      dnsStatusBadge.className = 'dns-result-box loading';
+      dnsStatusBadge.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span>Consultando DNS de ${escapeHtml(DOMINIO)}...</span>
+      `;
+      btnCheckDNS.disabled = true;
+
+      try {
+        const punycodeDomain = getPunycode(DOMINIO);
+        let resolved = false;
+        let ips = [];
+        let usedDomainName = DOMINIO;
+
+        // 1. Intento directo con el nombre cirílico
+        try {
+          const directData = await queryDoH(DOMINIO);
+          if (directData && directData.Status === 0 && Array.isArray(directData.Answer) && directData.Answer.length > 0) {
+            resolved = true;
+            ips = directData.Answer.filter(a => a.type === 1).map(a => a.data);
+            usedDomainName = DOMINIO;
+          }
+        } catch (e) {
+          // Si falla la consulta directa, se reintentará en punycode
+        }
+
+        // 2. Si no resolvió, reintentar con su forma Punycode
+        if (!resolved && punycodeDomain && punycodeDomain !== DOMINIO) {
+          try {
+            const punyData = await queryDoH(punycodeDomain);
+            if (punyData && punyData.Status === 0 && Array.isArray(punyData.Answer) && punyData.Answer.length > 0) {
+              resolved = true;
+              ips = punyData.Answer.filter(a => a.type === 1).map(a => a.data);
+              usedDomainName = punycodeDomain;
+            }
+          } catch (e) {
+            // Falla en ambos
+          }
+        }
+
+        if (resolved) {
+          dnsStatusBadge.className = 'dns-result-box ok';
+          dnsStatusBadge.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span><strong>${escapeHtml(DOMINIO)}</strong> responde en DNS (${ips.join(', ') || 'OK'})</span>
+          `;
+          showToast(`Dominio verificado en DNS`);
+        } else {
+          dnsStatusBadge.className = 'dns-result-box error';
+          dnsStatusBadge.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span><strong>${escapeHtml(DOMINIO)}</strong> (${escapeHtml(punycodeDomain)}) no existe en DNS (NXDOMAIN)</span>
+          `;
+          showToast(`Aviso: ${DOMINIO} no responde en DNS`);
+        }
+      } catch (err) {
+        dnsStatusBadge.className = 'dns-result-box error';
+        dnsStatusBadge.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>Error de conexión al consultar DNS</span>
+        `;
+      } finally {
+        btnCheckDNS.disabled = false;
+      }
+    }
+
+    /**
+     * ========================================================================
+     * GESTIÓN DE REDIRECCIONES (_redirects DE NETLIFY)
+     * Formato: /subenlace  https://destino  302
+     * ========================================================================
+     */
+    function saveRedirects() {
+      try {
+        localStorage.setItem(STORAGE_KEY_REDIRECTS, JSON.stringify(redirectsData));
+      } catch (e) {
+        console.error('Error guardando redirecciones en localStorage', e);
+      }
+      updateRedirectsPreview();
+    }
+
+    function renderRedirectsTable() {
+      redirectsTableBody.innerHTML = '';
+
+      if (redirectsData.length === 0) {
+        redirectsTableBody.innerHTML = `
+          <tr>
+            <td colspan="4" style="text-align: center; color: var(--wp-content-mid); padding: 24px;">
+              No hay redirecciones en la lista. Añade la primera arriba o pulsa "Añadir a lista de publicación".
+            </td>
+          </tr>
+        `;
+        updateRedirectsPreview();
+        return;
+      }
+
+      redirectsData.forEach((item, index) => {
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+          <td>
+            <span class="alias-pill">/${escapeHtml(item.subenlace)}</span>
+          </td>
+          <td>
+            <span class="target-url-text" title="${escapeHtml(item.dest)}">${escapeHtml(item.dest)}</span>
+          </td>
+          <td>
+            <select class="select-status" data-index="${index}">
+              <option value="302" ${item.code === 302 ? 'selected' : ''}>302 (Prueba)</option>
+              <option value="301" ${item.code === 301 ? 'selected' : ''}>301 (Definitivo)</option>
+            </select>
+          </td>
+          <td style="text-align:center;">
+            <button type="button" class="btn btn-danger-outline btn-sm" data-delete-index="${index}" title="Eliminar fila">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </td>
+        `;
+
+        // Modificar código HTTP 302/301
+        const select = tr.querySelector('.select-status');
+        select.addEventListener('change', (e) => {
+          redirectsData[index].code = parseInt(e.target.value, 10);
+          saveRedirects();
+        });
+
+        // Eliminar fila
+        const deleteBtn = tr.querySelector('[data-delete-index]');
+        deleteBtn.addEventListener('click', () => {
+          redirectsData.splice(index, 1);
+          saveRedirects();
+          renderRedirectsTable();
+          showToast('Redirección eliminada');
+        });
+
+        redirectsTableBody.appendChild(tr);
+      });
+
+      updateRedirectsPreview();
+    }
+
+    function generateRedirectsContent() {
+      if (redirectsData.length === 0) {
+        return `# Archivo _redirects generado para ${DOMINIO} (Netlify format)\n# Agrega pares subenlace/destino para exportar aquí.\n`;
+      }
+      let content = `# Redirecciones para ${DOMINIO} (Netlify format)\n`;
+      redirectsData.forEach(r => {
+        const cleanSub = r.subenlace.replace(/^\/+/, '');
+        content += `/${cleanSub}  ${r.dest}  ${r.code || 302}\n`;
+      });
+      return content;
+    }
+
+    function updateRedirectsPreview() {
+      redirectsPreview.textContent = generateRedirectsContent();
+    }
+
+    /**
+     * ========================================================================
+     * EMPAQUETADOR ZIP NATIVO EN PURO JAVASCRIPT
+     * Garantiza descarga del ZIP incluso si el CDN de JSZip falla o se está offline.
+     * ========================================================================
+     */
+    function createZipBlobPureJS(files) {
+      const encoder = new TextEncoder();
+      const fileRecords = [];
+      let offset = 0;
+
+      // Generar tabla CRC32
+      const crcTable = (() => {
+        let c;
+        const table = [];
+        for (let n = 0; n < 256; n++) {
+          c = n;
+          for (let k = 0; k < 8; k++) {
+            c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+          }
+          table[n] = c;
+        }
+        return table;
+      })();
+
+      function calcCRC32(bytes) {
+        let crc = 0 ^ (-1);
+        for (let i = 0; i < bytes.length; i++) {
+          crc = (crc >>> 8) ^ crcTable[(crc ^ bytes[i]) & 0xFF];
+        }
+        return (crc ^ (-1)) >>> 0;
+      }
+
+      const parts = [];
+
+      for (const f of files) {
+        const nameBytes = encoder.encode(f.name);
+        const dataBytes = encoder.encode(f.content);
+        const crc = calcCRC32(dataBytes);
+        const size = dataBytes.length;
+
+        // Cabecera local (30 bytes)
+        const header = new Uint8Array(30);
+        const view = new DataView(header.buffer);
+        view.setUint32(0, 0x04034b50, true);
+        view.setUint16(4, 20, true);
+        view.setUint16(6, 0, true);
+        view.setUint16(8, 0, true); // store sin compresión
+        view.setUint16(10, 0, true);
+        view.setUint16(12, 0, true);
+        view.setUint32(14, crc, true);
+        view.setUint32(18, size, true);
+        view.setUint32(22, size, true);
+        view.setUint16(26, nameBytes.length, true);
+        view.setUint16(28, 0, true);
+
+        fileRecords.push({
+          nameBytes,
+          crc,
+          size,
+          offset
+        });
+
+        parts.push(header, nameBytes, dataBytes);
+        offset += 30 + nameBytes.length + size;
+      }
+
+      const centralDirStart = offset;
+      let centralDirSize = 0;
+
+      for (const rec of fileRecords) {
+        // Cabecera directorio central (46 bytes)
+        const cdHeader = new Uint8Array(46);
+        const view = new DataView(cdHeader.buffer);
+        view.setUint32(0, 0x02014b50, true);
+        view.setUint16(4, 20, true);
+        view.setUint16(6, 20, true);
+        view.setUint16(8, 0, true);
+        view.setUint16(10, 0, true);
+        view.setUint16(12, 0, true);
+        view.setUint16(14, 0, true);
+        view.setUint32(16, rec.crc, true);
+        view.setUint32(20, rec.size, true);
+        view.setUint32(24, rec.size, true);
+        view.setUint16(28, rec.nameBytes.length, true);
+        view.setUint16(30, 0, true);
+        view.setUint16(32, 0, true);
+        view.setUint16(34, 0, true);
+        view.setUint16(36, 0, true);
+        view.setUint32(38, 0, true);
+        view.setUint32(42, rec.offset, true);
+
+        parts.push(cdHeader, rec.nameBytes);
+        centralDirSize += 46 + rec.nameBytes.length;
+      }
+
+      // Registro final de directorio central (22 bytes)
+      const eocd = new Uint8Array(22);
+      const eocdView = new DataView(eocd.buffer);
+      eocdView.setUint32(0, 0x06054b50, true);
+      eocdView.setUint16(4, 0, true);
+      eocdView.setUint16(6, 0, true);
+      eocdView.setUint16(8, fileRecords.length, true);
+      eocdView.setUint16(10, fileRecords.length, true);
+      eocdView.setUint32(12, centralDirSize, true);
+      eocdView.setUint32(16, centralDirStart, true);
+      eocdView.setUint16(20, 0, true);
+
+      parts.push(eocd);
+
+      return new Blob(parts, { type: 'application/zip' });
+    }
+
+    function generateIndexHtmlContent() {
+      let rowsHtml = '';
+      redirectsData.forEach(r => {
+        const cleanSub = r.subenlace.replace(/^\/+/, '');
+        rowsHtml += `
+          <tr>
+            <td style="padding:10px 14px; border-bottom:1px solid #E3E9EC;"><a href="/${cleanSub}" style="color:#13C1AC; font-weight:700;">/${cleanSub}</a></td>
+            <td style="padding:10px 14px; border-bottom:1px solid #E3E9EC;"><a href="${escapeHtml(r.dest)}" target="_blank" style="color:#5C7A89; text-decoration:none;">${escapeHtml(r.dest)}</a></td>
+            <td style="padding:10px 14px; border-bottom:1px solid #E3E9EC; font-weight:700;">${r.code || 302}</td>
+          </tr>`;
+      });
+
+      return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecciones · ${DOMINIO}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #F7FAFA; color: #29363D; margin: 0; padding: 40px 20px; }
+    .box { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    h1 { color: #015354; font-size: 22px; margin-top: 0; display:flex; align-items:center; gap:8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+    th { text-align: left; background: #F0F3F5; padding: 10px 14px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Redirecciones activas en ${DOMINIO}</h1>
+    <p style="color:#5C7A89; font-size:14px;">Este sitio gestiona las redirecciones automáticas configuradas en Netlify.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Subenlace</th>
+          <th>Destino</th>
+          <th>HTTP</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml || '<tr><td colspan="3" style="padding:16px; text-align:center; color:#5C7A89;">No hay redirecciones configuradas.</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>`;
+    }
+
+    async function downloadDeployZip() {
+      if (redirectsData.length === 0) {
+        showToast('Añade al menos una redirección antes de exportar');
+        return;
+      }
+
+      const redirectsText = generateRedirectsContent();
+      const indexHtmlText = generateIndexHtmlContent();
+      let zipBlob = null;
+
+      // Intentar primero con JSZip si está cargado desde CDN
+      if (window.JSZip) {
+        try {
+          const zip = new window.JSZip();
+          zip.file('_redirects', redirectsText);
+          zip.file('index.html', indexHtmlText);
+          zipBlob = await zip.generateAsync({ type: 'blob' });
+        } catch (e) {
+          zipBlob = null;
+        }
+      }
+
+      // Si falla o no está disponible JSZip, usar empaquetador nativo JS
+      if (!zipBlob) {
+        zipBlob = createZipBlobPureJS([
+          { name: '_redirects', content: redirectsText },
+          { name: 'index.html', content: indexHtmlText }
+        ]);
+      }
+
+      // Descargar archivo ZIP
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `redirects_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+
+      showToast('¡Archivo ZIP descargado con éxito!');
+    }
+
+    /**
+     * ========================================================================
+     * HISTORIAL LOCAL (ÚLTIMOS 12 ENLACES)
+     * ========================================================================
+     */
+    function saveToHistory(sub, dest) {
+      if (!validateSubenlace(sub)) return;
+
+      // Eliminar coincidencia previa para reordenar al principio
+      historyData = historyData.filter(item => item.subenlace.toLowerCase() !== sub.toLowerCase());
+
+      // Insertar nuevo al inicio
+      historyData.unshift({
+        subenlace: sub,
+        dest: dest || 'https://es.wallapop.com',
+        timestamp: new Date().toISOString()
+      });
+
+      // Limitar a los 12 más recientes
+      if (historyData.length > 12) {
+        historyData = historyData.slice(0, 12);
+      }
+
+      try {
+        localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(historyData));
+      } catch (e) {
+        console.error('Error guardando historial', e);
+      }
+
+      renderHistoryList();
+    }
+
+    function renderHistoryList() {
+      historyList.innerHTML = '';
+
+      if (historyData.length === 0) {
+        historyList.innerHTML = `
+          <div class="empty-state">
+            No hay enlaces en el historial todavía. Genera o copia un enlace para que aparezca aquí.
+          </div>
+        `;
+        return;
+      }
+
+      historyData.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'history-item';
+
+        const fullLink = `https://${DOMINIO}/${item.subenlace}`;
+        const copyLink = copyWithoutHttps ? `${DOMINIO}/${item.subenlace}` : fullLink;
+        const dateStr = formatDate(item.timestamp);
+
+        itemDiv.innerHTML = `
+          <div class="history-info">
+            <div class="history-main-line">
+              <span class="history-alias">${escapeHtml(copyLink)}</span>
+              <span class="history-date">${dateStr}</span>
+            </div>
+            <div class="history-dest" title="${escapeHtml(item.dest)}">
+              Destino: ${escapeHtml(item.dest)}
+            </div>
+          </div>
+          <div class="history-actions">
+            <button class="btn btn-secondary btn-sm" data-action="use" title="Cargar en los campos">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+              Usar
+            </button>
+            <button class="btn btn-outline-brand btn-sm" data-action="copy" title="Copiar enlace">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              Copiar
+            </button>
+            <button class="btn btn-danger-outline btn-sm" data-action="delete" title="Eliminar registro">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        `;
+
+        // Evento Usar
+        itemDiv.querySelector('[data-action="use"]').addEventListener('click', () => {
+          subenlaceInput.value = item.subenlace;
+          destUrlInput.value = item.dest || '';
+          cleanSubenlaceInput();
+          updateFinalLink();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          showToast(`Cargado "/${item.subenlace}" en el generador`);
+        });
+
+        // Evento Copiar
+        itemDiv.querySelector('[data-action="copy"]').addEventListener('click', () => {
+          copyTextWithFallback(copyLink, () => {
+            showToast(`Copiado: ${copyLink}`);
+          });
+        });
+
+        // Evento Eliminar
+        itemDiv.querySelector('[data-action="delete"]').addEventListener('click', () => {
+          historyData.splice(index, 1);
+          try {
+            localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(historyData));
+          } catch (e) {}
+          renderHistoryList();
+          showToast('Registro eliminado del historial');
+        });
+
+        historyList.appendChild(itemDiv);
+      });
+    }
+
+    /**
+     * ========================================================================
+     * CÓDIGO QR CON DEGRADACIÓN RESILIENTE
+     * Si QRCode CDN falla, degrada a API QR externa o mensaje seguro.
+     * ========================================================================
+     */
+    function openQrModal() {
+      const sub = subenlaceInput.value.trim();
+      if (!validateSubenlace(sub)) {
+        showToast('El subenlace no es válido para generar un código QR');
+        return;
+      }
+
+      const url = `https://${DOMINIO}/${sub}`;
+      qrModalUrl.textContent = url;
+      qrContainer.innerHTML = '';
+
+      let qrRendered = false;
+
+      // Intento 1: Librería QRCode.js
+      if (window.QRCode) {
+        try {
+          new window.QRCode(qrContainer, {
+            text: url,
+            width: 190,
+            height: 190,
+            colorDark: '#015354',
+            colorLight: '#FFFFFF',
+            correctLevel: window.QRCode.CorrectLevel.H
+          });
+          qrRendered = true;
+        } catch (e) {
+          qrRendered = false;
+        }
+      }
+
+      // Intento 2: Fallback API QR de imagen
+      if (!qrRendered) {
+        const qrImg = document.createElement('img');
+        qrImg.alt = 'Código QR de ' + url;
+        qrImg.style.width = '190px';
+        qrImg.style.height = '190px';
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=015354&data=${encodeURIComponent(url)}`;
+
+        qrImg.onerror = () => {
+          // Intento 3: Fallback si no hay conexión ni imágenes
+          qrContainer.innerHTML = `
+            <div style="padding:16px; font-size:12.5px; color:var(--wp-content-mid);">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--wp-brand)" stroke-width="2" style="margin-bottom:8px;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>
+              <br>Generador visual de QR no disponible sin conexión.
+              <br><strong style="color:var(--wp-brand-high);">${escapeHtml(url)}</strong>
+            </div>
+          `;
+        };
+
+        qrContainer.appendChild(qrImg);
+      }
+
+      qrModal.classList.add('active');
+    }
+
+    function closeQrModal() {
+      qrModal.classList.remove('active');
+    }
+
+    /**
+     * ========================================================================
+     * HELPERS GENERALES
+     * ========================================================================
+     */
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function formatDate(isoString) {
+      if (!isoString) return '';
+      try {
+        const d = new Date(isoString);
+        return d.toLocaleDateString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return '';
+      }
+    }
+
+    // Arrancar la aplicación una vez cargado el DOM
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
